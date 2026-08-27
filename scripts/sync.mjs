@@ -157,18 +157,21 @@ function extractItems(json) {
   return { items: [], hasMore: false };
 }
 
-async function fetchAllPages(pathName, baseBody) {
+async function fetchAllPages(pathName, baseBody, { logEvery = 0 } = {}) {
   const all = [];
   let pageNumber = 1;
   while (true) {
     const json = await apiPost(pathName, { ...baseBody, PageNumber: pageNumber });
     const { items, hasMore } = extractItems(json);
     all.push(...items);
+    if (logEvery && pageNumber % logEvery === 0) {
+      console.log(`  [${pathName}] página ${pageNumber}: ${items.length} ítems en esta página, ${all.length} acumulados, hasMore=${hasMore}`);
+    }
     if (items.length === 0) break;
     if (hasMore === false) break;
     if (hasMore === null && items.length < 1) break;
     pageNumber++;
-    if (pageNumber > 2000) { console.warn(`Corte de seguridad de paginación en ${pathName}`); break; }
+    if (pageNumber > 2000) { console.warn(`Corte de seguridad de paginación en ${pathName} (llegó a ${all.length} ítems)`); break; }
   }
   return all;
 }
@@ -220,7 +223,7 @@ async function main() {
   console.log('Login OK.');
 
   console.log('Listando clientes (puede tardar varios minutos por el límite de la API)...');
-  const rawClients = await fetchAllPages('/Client/List', { Filters: [], Sort: [{ Field: 'Id', Operation: 'asc' }] });
+  const rawClients = await fetchAllPages('/Client/List', { Filters: [], Sort: [{ Field: 'Id', Operation: 'asc' }] }, { logEvery: 5 });
   console.log(`Clientes encontrados: ${rawClients.length} (${Math.round((Date.now() - t0) / 1000)}s transcurridos)`);
 
   // Se anonimiza en el momento: solo se conserva id, género y canal de captación.
