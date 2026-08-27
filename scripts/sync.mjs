@@ -17,8 +17,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.join(__dirname, '..', 'data');
 const API_BASE = process.env.EVUP_API_BASE || 'https://definit.api.evup.dev';
-const CONCURRENCY = Number(process.env.SYNC_CONCURRENCY || 6);
-const MAX_RETRIES = 4;
+const CONCURRENCY = Number(process.env.SYNC_CONCURRENCY || 2);
+const MAX_RETRIES = 7;
 
 const LOGIN = process.env.EVUP_LOGIN;
 const PASSWORD = process.env.EVUP_PASSWORD;
@@ -98,9 +98,13 @@ async function apiPost(pathName, body, { retry = true } = {}) {
       continue;
     }
     if (res.status === 429 || res.status >= 500) {
-      const wait = Math.min(30000, 500 * 2 ** attempt);
-      console.warn(`HTTP ${res.status} en ${pathName}, reintento en ${wait}ms (intento ${attempt + 1}/${MAX_RETRIES})`);
-      await sleep(wait);
+      const retryAfterHeader = res.headers.get('retry-after');
+      const rateHeaders = [...res.headers.entries()].filter(([k]) => /rate|retry/i.test(k));
+      const errBody = await res.text().catch(() => '');
+      const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : null;
+      const backoff = retryAfterMs && !Number.isNaN(retryAfterMs) ? retryAfterMs : Math.min(60000, 2000 * 2 ** attempt);
+      console.warn(`HTTP ${res.status} en ${pathName} (intento ${attempt + 1}/${MAX_RETRIES + 1}). Headers: ${JSON.stringify(rateHeaders)}. Body: ${errBody.slice(0, 400)}. Reintento en ${backoff}ms.`);
+      await sleep(backoff);
       continue;
     }
     if (!res.ok) {
