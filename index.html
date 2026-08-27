@@ -1,1 +1,1080 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEFINIT · Tablero de Ventas y Otorgamiento</title>
+<meta name="description" content="Tablero interactivo de ventas y otorgamiento por ítem, Ene–Ago 2026. Datos agregados, sin información personal de clientes.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%231a2fe0'/%3E%3Ctext x='16' y='23' font-family='Arial,sans-serif' font-weight='800' font-size='20' fill='white' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    color-scheme: light;
+    --brand: #1a2fe0;
+    --brand-ink: #12207a;
+    --page: #f5f6f8;
+    --surface: #ffffff;
+    --surface-2: #fbfbfc;
+    --ink: #101114;
+    --ink-2: #54555c;
+    --muted: #8b8c94;
+    --border: rgba(16,17,20,0.10);
+    --border-strong: rgba(16,17,20,0.16);
+    --grid: #e7e7ea;
 
+    --s1: #2a78d6; /* blue */
+    --s2: #eb6834; /* orange */
+    --s3: #1baf7a; /* aqua */
+    --s4: #eda100; /* yellow */
+    --s5: #e87ba4; /* magenta */
+    --s6: #008300; /* green */
+    --s7: #4a3aa7; /* violet */
+    --s8: #e34948; /* red */
+    --sOther: #b7b8c0;
+
+    --good: #0ca30c;
+    --warning: #b9790a;
+    --critical: #d03b3b;
+
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16,17,20,0.04), 0 8px 24px -16px rgba(16,17,20,0.18);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  h1,h2,h3, .disp{ font-family: "Sora", system-ui, sans-serif; }
+  h1,h2,h3{ margin:0; text-wrap: balance; }
+  p{ margin:0; }
+  .tabular{ font-variant-numeric: tabular-nums; }
+
+  a{ color: var(--brand); }
+
+  /* ---------- layout shell ---------- */
+  .wrap{ max-width: 1240px; margin: 0 auto; padding: 0 20px 64px; }
+
+  header.top{
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .top-inner{
+    max-width:1240px; margin:0 auto; padding: 20px 20px 18px;
+    display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand-mark{
+    width:40px; height:40px; border-radius:50%; background: var(--brand);
+    display:flex; align-items:center; justify-content:center; flex:none;
+    box-shadow: 0 4px 14px -4px rgba(26,47,224,0.55);
+  }
+  .brand-mark span{ color:#fff; font-family:"Sora",sans-serif; font-weight:800; font-size:20px; }
+  .brand-word{ font-family:"Sora",sans-serif; font-weight:800; font-size:22px; letter-spacing:0.2px; color:#0c0c0e; }
+  .brand-sub{ font-size:12.5px; color: var(--muted); margin-top:1px; }
+  .title-block{ }
+  .title-block h1{ font-size: 19px; font-weight:700; }
+  .title-block .meta-line{ font-size:12.5px; color:var(--muted); margin-top:3px; }
+  .gen-badge{
+    font-size:12px; color:var(--ink-2); background:var(--surface-2); border:1px solid var(--border);
+    padding:6px 10px; border-radius:999px; white-space:nowrap;
+  }
+
+  /* ---------- filter bar ---------- */
+  .filterbar{
+    position: sticky; top:0; z-index: 20;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
+    border-bottom:1px solid var(--border);
+  }
+  .filterbar-inner{
+    max-width:1240px; margin:0 auto; padding:12px 20px;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .chip-row{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .chip{
+    border:1px solid var(--border-strong); background:#fff; color:var(--ink-2);
+    font-size:12.5px; font-weight:600; padding:6px 11px; border-radius:999px; cursor:pointer;
+    transition: background .12s, color .12s, border-color .12s;
+    user-select:none;
+  }
+  .chip:hover{ border-color: var(--brand); color:var(--brand); }
+  .chip.active{ background: var(--brand); border-color:var(--brand); color:#fff; }
+  .field{ display:flex; flex-direction:column; gap:3px; }
+  .field label{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); font-weight:700; }
+  select{
+    font: inherit; font-size:13px; color:var(--ink); background:#fff;
+    border:1px solid var(--border-strong); border-radius:8px; padding:6px 28px 6px 10px;
+    appearance:none; -webkit-appearance:none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2354555c'%3E%3Cpath d='M5.5 7.5l4.5 4.5 4.5-4.5' stroke='%2354555c' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position: right 8px center; background-size:14px;
+    cursor:pointer; min-width:150px;
+  }
+  select:hover{ border-color: var(--brand); }
+  .spacer{ flex:1; }
+  .reset-btn{
+    font-size:12.5px; font-weight:700; color:var(--brand); background:#eef0fe; border:1px solid #d7dbfb;
+    padding:6px 12px; border-radius:8px; cursor:pointer;
+  }
+  .reset-btn:hover{ background:#e3e6fd; }
+  .count-pill{ font-size:12px; color:var(--muted); white-space:nowrap; }
+  .count-pill b{ color:var(--ink); font-weight:700; }
+
+  /* ---------- KPI tiles ---------- */
+  .kpi-grid{
+    display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;
+    margin-top:22px;
+  }
+  .kpi{
+    background:var(--surface); border:1px solid var(--border); border-radius: var(--radius);
+    padding:16px 16px 14px; box-shadow: var(--shadow);
+    display:flex; flex-direction:column; gap:6px; min-height:96px; justify-content:space-between;
+  }
+  .kpi .k-label{ font-size:12px; color:var(--muted); font-weight:600; }
+  .kpi .k-value{ font-size:24px; font-weight:800; font-family:"Sora",sans-serif; letter-spacing:-0.2px; }
+  .kpi .k-value.small{ font-size:20px; }
+  .kpi .k-sub{ font-size:11.5px; color:var(--ink-2); }
+  .kpi.warn .k-value{ color: var(--critical); }
+  .kpi .k-dot{ width:8px;height:8px;border-radius:50%; display:inline-block; margin-right:6px; }
+
+  /* ---------- section headings ---------- */
+  .section-title{ margin: 34px 0 4px; font-size:13px; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); font-weight:800; }
+
+  /* ---------- chart grid & cards ---------- */
+  .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:12px; }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding:18px 18px 14px; position:relative;
+  }
+  .card.full{ grid-column: 1 / -1; }
+  .card-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px; }
+  .card-head h3{ font-size:14.5px; font-weight:700; }
+  .card-head .card-sub{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .card-tools{ display:flex; gap:6px; flex:none; }
+  .tbtn{
+    font-size:11.5px; font-weight:700; color:var(--ink-2); background:var(--surface-2);
+    border:1px solid var(--border); padding:4px 9px; border-radius:7px; cursor:pointer;
+  }
+  .tbtn.active{ background:var(--brand); border-color:var(--brand); color:#fff; }
+  .tbtn:hover:not(.active){ border-color:var(--brand); color:var(--brand); }
+
+  .chart-box{ margin-top:8px; }
+  .legend{ display:flex; flex-wrap:wrap; gap:10px 16px; margin-top:10px; font-size:12px; color:var(--ink-2); }
+  .legend .li{ display:flex; align-items:center; gap:6px; }
+  .legend .sw{ width:9px; height:9px; border-radius:2px; flex:none; }
+
+  .empty-note{ font-size:12.5px; color:var(--muted); padding:20px 4px; text-align:center; }
+
+  /* tooltip */
+  .viz-tooltip{
+    position:fixed; pointer-events:none; z-index:100;
+    background:#101114; color:#fff; font-size:12px; line-height:1.4;
+    padding:8px 10px; border-radius:8px; box-shadow:0 8px 24px -8px rgba(0,0,0,0.4);
+    max-width:240px; opacity:0; transform: translate(-9999px,-9999px);
+    transition: opacity .08s;
+  }
+  .viz-tooltip b{ font-weight:700; }
+  .viz-tooltip .tt-row{ display:flex; justify-content:space-between; gap:14px; }
+  .viz-tooltip .tt-sw{ display:inline-block; width:7px;height:7px;border-radius:2px; margin-right:5px; }
+
+  /* table */
+  table.datatable{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:10px; }
+  table.datatable th, table.datatable td{ padding:7px 8px; text-align:right; border-bottom:1px solid var(--border); }
+  table.datatable th:first-child, table.datatable td:first-child{ text-align:left; }
+  table.datatable th{ color:var(--muted); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; position:sticky; top:0; background:var(--surface); }
+  table.datatable tbody tr:hover{ background: var(--surface-2); }
+  .table-scroll{ max-height:340px; overflow-y:auto; overflow-x:auto; margin-top:6px; border:1px solid var(--border); border-radius:10px; }
+  .search-box{
+    font-size:12.5px; padding:6px 10px; border:1px solid var(--border-strong); border-radius:8px; width:200px;
+  }
+
+  footer{
+    max-width:1240px; margin: 40px auto 0; padding: 20px 20px 0; border-top:1px solid var(--border);
+  }
+  footer p{ font-size:11.5px; color:var(--muted); line-height:1.6; }
+  footer .foot-row{ display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; padding: 16px 0 24px; }
+
+  svg text{ font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .bar-hover{ cursor:pointer; }
+
+  @media (max-width: 980px){
+    .kpi-grid{ grid-template-columns: repeat(2,1fr); }
+    .grid2{ grid-template-columns: 1fr; }
+  }
+  @media (max-width: 620px){
+    .kpi-grid{ grid-template-columns: 1fr 1fr; }
+    .top-inner{ flex-direction:column; align-items:flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <div class="brand-mark"><span>D</span></div>
+      <div>
+        <div class="brand-word">DEFINIT</div>
+        <div class="brand-sub">Bella Vista</div>
+      </div>
+    </div>
+    <div class="title-block">
+      <h1>Tablero de Ventas y Otorgamiento por Ítem</h1>
+      <div class="meta-line">Enero – Agosto 2026 · datos agregados, sin nombres, teléfonos ni CPF de clientes</div>
+    </div>
+    <div class="gen-badge" id="genBadge">Generado —</div>
+  </div>
+</header>
+
+<div class="filterbar">
+  <div class="filterbar-inner">
+    <div class="chip-row" id="mesChips"></div>
+    <div class="field">
+      <label for="fEstab">Estabelecimento</label>
+      <select id="fEstab"><option value="all">Todos</option></select>
+    </div>
+    <div class="field">
+      <label for="fItem">Ítem</label>
+      <select id="fItem"><option value="all">Todos</option></select>
+    </div>
+    <div class="field">
+      <label for="fVendedor">Vendedora</label>
+      <select id="fVendedor"><option value="all">Todas</option></select>
+    </div>
+    <div class="field">
+      <label for="fStatus">Estado</label>
+      <select id="fStatus"><option value="all">Todos</option></select>
+    </div>
+    <div class="field">
+      <label for="fGenero">Género</label>
+      <select id="fGenero"><option value="all">Todos</option></select>
+    </div>
+    <button class="reset-btn" id="resetBtn">Restablecer filtros</button>
+    <div class="spacer"></div>
+    <div class="count-pill" id="countPill"></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <div class="section-title">Evolución y estados</div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Evolución mensual</h3>
+          <div class="card-sub">Valor otorgado por mes de creación del presupuesto</div>
+        </div>
+        <div class="card-tools">
+          <button class="tbtn active" data-mode="valor" id="btnValor">Valor $</button>
+          <button class="tbtn" data-mode="contratos" id="btnContratos">Contratos</button>
+        </div>
+      </div>
+      <div class="chart-box" id="chartMonthly"></div>
+      <div class="legend" id="legendMonthly"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Estado del presupuesto</h3>
+          <div class="card-sub">Distribución de líneas de ítem por estado</div>
+        </div>
+      </div>
+      <div class="chart-box" id="chartStatus"></div>
+      <div class="legend" id="legendStatus"></div>
+    </div>
+  </div>
+
+  <div class="section-title">Productos</div>
+  <div class="grid2">
+    <div class="card full">
+      <div class="card-head">
+        <div>
+          <h3>Ítems más otorgados</h3>
+          <div class="card-sub">Top 12 de 71 ítems distintos</div>
+        </div>
+        <div class="card-tools">
+          <button class="tbtn active" data-sort="valor" id="btnItemValor">Por valor</button>
+          <button class="tbtn" data-sort="cant" id="btnItemCant">Por cantidad</button>
+        </div>
+      </div>
+      <div class="chart-box" id="chartItems"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-top:16px; gap:10px; flex-wrap:wrap;">
+        <div class="card-sub" style="margin:0;">Detalle completo de ítems</div>
+        <input class="search-box" id="itemSearch" placeholder="Buscar ítem…">
+      </div>
+      <div class="table-scroll">
+        <table class="datatable" id="itemTable">
+          <thead><tr><th>Ítem</th><th>Líneas</th><th>Valor líquido</th><th>Valor bruto</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Equipo y canales</div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Ranking de vendedoras</h3>
+          <div class="card-sub">Valor líquido otorgado por vendedora</div>
+        </div>
+      </div>
+      <div class="chart-box" id="chartVendedor"></div>
+      <div class="table-scroll" style="max-height:220px;">
+        <table class="datatable" id="vendedorTable">
+          <thead><tr><th>Vendedora</th><th>Contratos</th><th>Valor líquido</th><th>Ticket prom.</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Canal de captación</h3>
+          <div class="card-sub">Cómo llegó el cliente (Mídia Cliente)</div>
+        </div>
+      </div>
+      <div class="chart-box" id="chartMediaCliente"></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Canal del contrato</h3>
+          <div class="card-sub">Origen asociado al presupuesto (Mídia Contrato)</div>
+        </div>
+      </div>
+      <div class="chart-box" id="chartMediaContrato"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Ítems por contrato</h3>
+          <div class="card-sub">Cantidad de zonas incluidas por contrato (cross-sell)</div>
+        </div>
+      </div>
+      <div class="chart-box" id="chartQtde"></div>
+    </div>
+  </div>
+
+  <div class="section-title">Clientes</div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Género</h3>
+          <div class="card-sub">Contratos por género declarado</div>
+        </div>
+      </div>
+      <div class="chart-box" id="chartGenero"></div>
+      <div class="legend" id="legendGenero"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Clientes sin pago registrado</h3>
+          <div class="card-sub">Sin ningún presupuesto en estado Pago / Transferido, por mes de primera aparición</div>
+        </div>
+      </div>
+      <div class="chart-box" id="chartSinPago"></div>
+      <div class="legend" id="legendSinPago"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p><b>Metodología.</b> Base: hoja "Orçamento x Item" del archivo Ene_Ago26_consolidado.xlsx (6.623 líneas de ítem, 4.305 presupuestos/contratos, 1.746 clientes únicos). Cada fila es un ítem dentro de un presupuesto; el valor bruto/líquido del contrato se reconstruye sumando sus ítems. "Clientes sin pago" replica la definición de la hoja original: clientes sin ningún presupuesto en estado Pago o Transferido, contados una sola vez por su mes de primera aparición dentro del recorte filtrado.</p>
+  <div class="foot-row">
+    <p>No incluye nombre, teléfono, e-mail, CPF/CNPJ ni domicilio de clientes.</p>
+    <p id="genBadge2">—</p>
+  </div>
+</footer>
+
+<div class="viz-tooltip" id="tooltip"></div>
+
+<script>
+/*
+Row layout: [contratoIdx, clienteIdx, itemIdx, axilas(0/1), vendedorIdx, generoIdx,
+             mediaClienteIdx, mediaContratoIdx, qtdeItens, statusIdx, valorBruto, valorLiq, tienePago(0/1), mesIdx, estabIdx]
+*/
+let DICTS, ROWS;
+
+const fmtIntl = new Intl.NumberFormat('es-AR');
+function fmtInt(n){ return fmtIntl.format(Math.round(n)); }
+function fmtMoney(n){ return '$' + fmtInt(n); }
+function fmtMoneyM(n){
+  if (Math.abs(n) >= 1e6) return '$' + fmtInt(n/1e6) + ' M';
+  return fmtMoney(n);
+}
+function pct(n, d){ return d>0 ? (100*n/d) : 0; }
+function fmtPct(n){ return n.toFixed(1).replace('.', ',') + '%'; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showLoadError(err){
+  document.body.innerHTML = `<div style="max-width:640px;margin:80px auto;padding:0 24px;font-family:system-ui,sans-serif;">
+    <h1 style="font-size:20px;margin:0 0 12px;">No se pudieron cargar los datos</h1>
+    <p style="color:#54555c;line-height:1.6;">Este tablero necesita <code>data/dicts.json</code> y <code>data/rows.json</code> junto al HTML, servidos por HTTP (no funciona abriendo el archivo con doble clic desde el explorador). Probalo publicado en GitHub Pages, o serví esta carpeta con un servidor local.</p>
+    <p style="color:#8b8c94;font-size:12px;margin-top:16px;">${err ? esc(String(err)) : ''}</p>
+  </div>`;
+}
+
+async function boot(){
+  let dicts, rows, meta = null;
+  try {
+    const [dictsRes, rowsRes] = await Promise.all([fetch('./data/dicts.json'), fetch('./data/rows.json')]);
+    if (!dictsRes.ok || !rowsRes.ok) throw new Error('HTTP ' + dictsRes.status + '/' + rowsRes.status);
+    dicts = await dictsRes.json();
+    rows = await rowsRes.json();
+    try { const metaRes = await fetch('./data/meta.json'); if (metaRes.ok) meta = await metaRes.json(); } catch(e){}
+  } catch (err) {
+    showLoadError(err);
+    return;
+  }
+  DICTS = dicts;
+  ROWS = rows;
+
+const R = { c:0, cl:1, it:2, ax:3, v:4, g:5, mc:6, mt:7, qi:8, st:9, vb:10, vl:11, p:12, m:13, e:14 };
+
+const PALETTE = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'];
+const OTHER_COLOR = '#b7b8c0';
+const SEQ_BLUE = ['#cde2fb','#9ec5f4','#5598e7','#2a78d6','#184f95'];
+
+const MES_LABELS = { '2026-01':'Ene','2026-02':'Feb','2026-03':'Mar','2026-04':'Abr','2026-05':'May','2026-06':'Jun','2026-07':'Jul','2026-08':'Ago' };
+const mesOrder = DICTS.mes.map((m,i)=>({m,i})).sort((a,b)=> a.m.localeCompare(b.m));
+
+const STATUS_IDX_PAGO = DICTS.status.indexOf('Pago');
+const STATUS_IDX_TRANSFERIDO = DICTS.status.indexOf('Transferido');
+
+// ---------------- state ----------------
+const state = {
+  meses: new Set(mesOrder.map(o=>o.i)),
+  estab: 'all',
+  item: 'all',
+  vendedor: 'all',
+  status: 'all',
+  genero: 'all',
+  monthlyMode: 'valor',
+  itemSort: 'valor',
+  itemSearch: ''
+};
+
+// ---------------- DOM refs ----------------
+const tooltip = document.getElementById('tooltip');
+
+function showTooltip(x, y, html){
+  tooltip.innerHTML = html;
+  tooltip.style.opacity = '1';
+  const pad = 14;
+  let left = x + pad, top = y + pad;
+  const rect = tooltip.getBoundingClientRect();
+  if (left + rect.width > window.innerWidth - 8) left = x - rect.width - pad;
+  if (top + rect.height > window.innerHeight - 8) top = y - rect.height - pad;
+  tooltip.style.transform = `translate(${left}px, ${top}px)`;
+}
+function hideTooltip(){ tooltip.style.opacity = '0'; tooltip.style.transform = 'translate(-9999px,-9999px)'; }
+
+// ---------------- filter setup ----------------
+function buildSelect(id, dictArr, allLabel){
+  const el = document.getElementById(id);
+  const counts = new Map();
+  dictArr.forEach((label, idx) => counts.set(idx,label));
+  const sorted = dictArr.map((label,idx)=>({label,idx})).sort((a,b)=>a.label.localeCompare(b.label,'es'));
+  sorted.forEach(({label,idx})=>{
+    const opt = document.createElement('option');
+    opt.value = idx; opt.textContent = label;
+    el.appendChild(opt);
+  });
+}
+buildSelect('fEstab', DICTS.estabelecimento);
+buildSelect('fItem', DICTS.item);
+buildSelect('fVendedor', DICTS.vendedor);
+buildSelect('fStatus', DICTS.status);
+buildSelect('fGenero', DICTS.genero);
+
+const mesChipsEl = document.getElementById('mesChips');
+const allChip = document.createElement('button');
+allChip.className = 'chip active';
+allChip.textContent = 'Todos los meses';
+allChip.onclick = () => {
+  state.meses = new Set(mesOrder.map(o=>o.i));
+  refreshMonthChips();
+  render();
+};
+mesChipsEl.appendChild(allChip);
+
+mesOrder.forEach(({m,i})=>{
+  const chip = document.createElement('button');
+  chip.className = 'chip active';
+  chip.textContent = MES_LABELS[m] || m;
+  chip.dataset.idx = i;
+  chip.onclick = () => {
+    if (state.meses.has(i)) { state.meses.delete(i); } else { state.meses.add(i); }
+    if (state.meses.size === 0) state.meses = new Set(mesOrder.map(o=>o.i));
+    refreshMonthChips();
+    render();
+  };
+  mesChipsEl.appendChild(chip);
+});
+function refreshMonthChips(){
+  const chips = mesChipsEl.querySelectorAll('button[data-idx]');
+  let allOn = true;
+  chips.forEach(c=>{
+    const on = state.meses.has(Number(c.dataset.idx));
+    c.classList.toggle('active', on);
+    if (!on) allOn = false;
+  });
+  allChip.classList.toggle('active', allOn);
+}
+
+document.getElementById('fEstab').addEventListener('change', e => { state.estab = e.target.value; render(); });
+document.getElementById('fItem').addEventListener('change', e => { state.item = e.target.value; render(); });
+document.getElementById('fVendedor').addEventListener('change', e => { state.vendedor = e.target.value; render(); });
+document.getElementById('fStatus').addEventListener('change', e => { state.status = e.target.value; render(); });
+document.getElementById('fGenero').addEventListener('change', e => { state.genero = e.target.value; render(); });
+document.getElementById('resetBtn').addEventListener('click', () => {
+  state.meses = new Set(mesOrder.map(o=>o.i));
+  state.estab='all'; state.item='all'; state.vendedor='all'; state.status='all'; state.genero='all';
+  document.getElementById('fEstab').value='all';
+  document.getElementById('fItem').value='all';
+  document.getElementById('fVendedor').value='all';
+  document.getElementById('fStatus').value='all';
+  document.getElementById('fGenero').value='all';
+  refreshMonthChips();
+  render();
+});
+
+document.getElementById('btnValor').addEventListener('click', ()=>{ state.monthlyMode='valor'; syncMonthlyBtns(); render(); });
+document.getElementById('btnContratos').addEventListener('click', ()=>{ state.monthlyMode='contratos'; syncMonthlyBtns(); render(); });
+function syncMonthlyBtns(){
+  document.getElementById('btnValor').classList.toggle('active', state.monthlyMode==='valor');
+  document.getElementById('btnContratos').classList.toggle('active', state.monthlyMode==='contratos');
+}
+
+document.getElementById('btnItemValor').addEventListener('click', ()=>{ state.itemSort='valor'; syncItemBtns(); render(); });
+document.getElementById('btnItemCant').addEventListener('click', ()=>{ state.itemSort='cant'; syncItemBtns(); render(); });
+function syncItemBtns(){
+  document.getElementById('btnItemValor').classList.toggle('active', state.itemSort==='valor');
+  document.getElementById('btnItemCant').classList.toggle('active', state.itemSort==='cant');
+}
+document.getElementById('itemSearch').addEventListener('input', e=>{ state.itemSearch = e.target.value.trim().toUpperCase(); renderItemTable(currentFiltered()); });
+
+// ---------------- filtering ----------------
+function currentFiltered(){
+  const out = [];
+  for (let i=0;i<ROWS.length;i++){
+    const row = ROWS[i];
+    if (!state.meses.has(row[R.m])) continue;
+    if (state.estab!=='all' && row[R.e] !== Number(state.estab)) continue;
+    if (state.item!=='all' && row[R.it] !== Number(state.item)) continue;
+    if (state.vendedor!=='all' && row[R.v] !== Number(state.vendedor)) continue;
+    if (state.status!=='all' && row[R.st] !== Number(state.status)) continue;
+    if (state.genero!=='all' && row[R.g] !== Number(state.genero)) continue;
+    out.push(row);
+  }
+  return out;
+}
+
+// ---------------- SVG helpers ----------------
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs){
+  const el = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function emptyState(container, msg){
+  container.innerHTML = `<div class="empty-note">${esc(msg||'Sin datos para el filtro seleccionado.')}</div>`;
+}
+
+// Horizontal bar chart
+function renderHBar(containerId, data, opts){
+  opts = opts || {};
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  if (!data.length){ emptyState(container); return; }
+  const W = container.clientWidth || 520;
+  const rowH = opts.rowH || 26;
+  const gap = 8;
+  const valueW = W < 360 ? 60 : 86;
+  const labelW = Math.max(60, Math.min(opts.labelW || 150, Math.round(W * 0.4)));
+  const chartW = Math.max(40, W - labelW - valueW - 10);
+  const H = data.length * (rowH+gap) - gap + 8;
+  const maxV = Math.max(...data.map(d=>d.value), 1);
+
+  const svg = svgEl('svg', {width:W, height:H, viewBox:`0 0 ${W} ${H}`, style:'display:block; overflow:visible;'});
+
+  data.forEach((d,i)=>{
+    const y = i*(rowH+gap);
+    const barW = Math.max(2, (d.value/maxV) * chartW);
+    const color = d.color || PALETTE[0];
+
+    const maxChars = Math.max(8, Math.floor(labelW/6.2));
+    const label = svgEl('text', {x:0, y: y+rowH/2+4, 'font-size':12, fill:'var(--ink-2, #54555c)'});
+    label.textContent = d.label.length>maxChars ? d.label.slice(0,maxChars-1)+'…' : d.label;
+    svg.appendChild(label);
+
+    const track = svgEl('rect', {x:labelW, y:y+3, width:chartW, height:rowH-6, rx:4, fill:'#f0f1f4'});
+    svg.appendChild(track);
+
+    const bar = svgEl('rect', {class:'bar-hover', x:labelW, y:y+3, width:barW, height:rowH-6, rx:4, fill:color});
+    bar.addEventListener('mousemove', (e)=>{
+      showTooltip(e.clientX, e.clientY, `<b>${esc(d.label)}</b><br>${opts.tooltip ? opts.tooltip(d) : fmtMoney(d.value)}`);
+    });
+    bar.addEventListener('mouseleave', hideTooltip);
+    svg.appendChild(bar);
+
+    const val = svgEl('text', {x: labelW+chartW+8, y: y+rowH/2+4, 'font-size':12, 'font-weight':700, fill:'#101114'});
+    val.textContent = opts.valueLabel ? opts.valueLabel(d) : fmtMoneyM(d.value);
+    svg.appendChild(val);
+  });
+
+  container.appendChild(svg);
+}
+
+// Vertical bar chart (categorical x)
+function renderVBar(containerId, data, opts){
+  opts = opts || {};
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  if (!data.length){ emptyState(container); return; }
+  const W = container.clientWidth || 520;
+  const H = opts.height || 220;
+  const padL = 42, padB = 30, padT = 14, padR = 10;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const maxV = Math.max(...data.map(d=>d.value), 1);
+  const niceMax = niceCeil(maxV);
+  const n = data.length;
+  const slot = chartW / n;
+  const barW = Math.min(28, slot*0.55);
+
+  const svg = svgEl('svg', {width:W, height:H, viewBox:`0 0 ${W} ${H}`, style:'display:block; overflow:visible;'});
+
+  [0,0.25,0.5,0.75,1].forEach(f=>{
+    const y = padT + chartH*(1-f);
+    svg.appendChild(svgEl('line', {x1:padL, x2:padL+chartW, y1:y, y2:y, stroke:'#e7e7ea', 'stroke-width':1}));
+    const t = svgEl('text', {x:padL-8, y:y+3, 'font-size':10, fill:'#8b8c94', 'text-anchor':'end'});
+    t.textContent = opts.axisFmt ? opts.axisFmt(niceMax*f) : fmtInt(niceMax*f);
+    svg.appendChild(t);
+  });
+
+  data.forEach((d,i)=>{
+    const cx = padL + slot*i + slot/2;
+    const h = Math.max(1, (d.value/niceMax) * chartH);
+    const y = padT + chartH - h;
+    const color = d.color || PALETTE[0];
+    const bar = svgEl('rect', {class:'bar-hover', x:cx-barW/2, y, width:barW, height:h, rx:4, fill:color});
+    bar.addEventListener('mousemove', (e)=>{
+      showTooltip(e.clientX, e.clientY, `<b>${esc(d.label)}</b><br>${opts.tooltip ? opts.tooltip(d) : fmtInt(d.value)}`);
+    });
+    bar.addEventListener('mouseleave', hideTooltip);
+    svg.appendChild(bar);
+
+    const lbl = svgEl('text', {x:cx, y:padT+chartH+18, 'font-size':11, fill:'#54555c', 'text-anchor':'middle'});
+    lbl.textContent = d.label;
+    svg.appendChild(lbl);
+  });
+
+  container.appendChild(svg);
+}
+
+function niceCeil(v){
+  if (v<=0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const norm = v/mag;
+  let step;
+  if (norm<=1) step=1; else if(norm<=2) step=2; else if(norm<=5) step=5; else step=10;
+  return step*mag;
+}
+
+// Line/area chart, one $ axis, up to two series
+function renderLine(containerId, series, categories, opts){
+  opts = opts || {};
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  if (!categories.length){ emptyState(container); return; }
+  const W = container.clientWidth || 520;
+  const H = opts.height || 240;
+  const padL = 54, padB = 28, padT = 16, padR = 16;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const n = categories.length;
+  const maxV = Math.max(1, ...series.flatMap(s=>s.values));
+  const niceMax = niceCeil(maxV);
+  const x = i => padL + (n===1 ? chartW/2 : (chartW * i/(n-1)));
+  const y = v => padT + chartH * (1 - v/niceMax);
+
+  const svg = svgEl('svg', {width:W, height:H, viewBox:`0 0 ${W} ${H}`, style:'display:block; overflow:visible;'});
+
+  [0,0.25,0.5,0.75,1].forEach(f=>{
+    const yy = padT + chartH*(1-f);
+    svg.appendChild(svgEl('line', {x1:padL, x2:padL+chartW, y1:yy, y2:yy, stroke:'#e7e7ea', 'stroke-width':1}));
+    const t = svgEl('text', {x:padL-8, y:yy+3, 'font-size':10, fill:'#8b8c94', 'text-anchor':'end'});
+    t.textContent = opts.axisFmt ? opts.axisFmt(niceMax*f) : fmtInt(niceMax*f);
+    svg.appendChild(t);
+  });
+
+  categories.forEach((c,i)=>{
+    const t = svgEl('text', {x:x(i), y:padT+chartH+18, 'font-size':11, fill:'#54555c', 'text-anchor':'middle'});
+    t.textContent = c;
+    svg.appendChild(t);
+  });
+
+  series.forEach((s, si) => {
+    if (s.area){
+      let d = `M ${x(0)} ${y(0)} `;
+      s.values.forEach((v,i)=> d += `L ${x(i)} ${y(v)} `);
+      d += `L ${x(n-1)} ${y(0)} Z`;
+      svg.appendChild(svgEl('path', {d, fill:s.color, 'fill-opacity':0.10, stroke:'none'}));
+    }
+    let path = '';
+    s.values.forEach((v,i)=>{ path += (i===0?'M ':'L ') + x(i) + ' ' + y(v) + ' '; });
+    svg.appendChild(svgEl('path', {d:path, fill:'none', stroke:s.color, 'stroke-width':2, 'stroke-linejoin':'round', 'stroke-linecap':'round'}));
+
+    s.values.forEach((v,i)=>{
+      const dot = svgEl('circle', {cx:x(i), cy:y(v), r:5, fill:s.color, stroke:'#fff', 'stroke-width':2, class:'bar-hover'});
+      dot.addEventListener('mousemove', (e)=>{
+        const rows = series.map(ss => `<div class="tt-row"><span><span class="tt-sw" style="background:${ss.color}"></span>${esc(ss.name)}</span><b style="margin-left:10px">${opts.tooltipFmt ? opts.tooltipFmt(ss.values[i]) : fmtInt(ss.values[i])}</b></div>`).join('');
+        showTooltip(e.clientX, e.clientY, `<b>${esc(categories[i])}</b>${rows}`);
+      });
+      dot.addEventListener('mouseleave', hideTooltip);
+      svg.appendChild(dot);
+    });
+  });
+
+  container.appendChild(svg);
+}
+
+// Donut chart
+function renderDonut(containerId, data, opts){
+  opts = opts || {};
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  if (!data.length){ emptyState(container); return; }
+  const size = opts.size || 200;
+  const cx = size/2, cy = size/2, rOuter = size/2 - 6, rInner = rOuter*0.6;
+  const total = data.reduce((a,d)=>a+d.value,0) || 1;
+
+  const svg = svgEl('svg', {width:size, height:size, viewBox:`0 0 ${size} ${size}`, style:'display:block; margin:0 auto;'});
+  let angle = -Math.PI/2;
+  const gapRad = 0.014;
+
+  data.forEach(d=>{
+    const frac = d.value/total;
+    const a0 = angle + gapRad/2;
+    const a1 = angle + frac*Math.PI*2 - gapRad/2;
+    angle += frac*Math.PI*2;
+    if (a1 <= a0) return;
+    const largeArc = (a1-a0) > Math.PI ? 1 : 0;
+    const p = (r,a) => [cx + r*Math.cos(a), cy + r*Math.sin(a)];
+    const [x0,y0] = p(rOuter,a0), [x1,y1] = p(rOuter,a1);
+    const [x2,y2] = p(rInner,a1), [x3,y3] = p(rInner,a0);
+    const path = `M ${x0} ${y0} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x1} ${y1} L ${x2} ${y2} A ${rInner} ${rInner} 0 ${largeArc} 0 ${x3} ${y3} Z`;
+    const el = svgEl('path', {d:path, fill:d.color, class:'bar-hover'});
+    el.addEventListener('mousemove', (e)=>{
+      showTooltip(e.clientX, e.clientY, `<b>${esc(d.label)}</b><br>${fmtInt(d.value)} (${fmtPct(pct(d.value,total))})`);
+    });
+    el.addEventListener('mouseleave', hideTooltip);
+    svg.appendChild(el);
+  });
+
+  const centerVal = svgEl('text', {x:cx, y:cy-2, 'text-anchor':'middle', 'font-size':20, 'font-weight':800, fill:'#101114', 'font-family':'Sora, sans-serif'});
+  centerVal.textContent = fmtInt(total);
+  svg.appendChild(centerVal);
+  const centerLbl = svgEl('text', {x:cx, y:cy+16, 'text-anchor':'middle', 'font-size':10.5, fill:'#8b8c94'});
+  centerLbl.textContent = opts.centerLabel || 'total';
+  svg.appendChild(centerLbl);
+
+  container.appendChild(svg);
+}
+
+function renderLegend(elId, items){
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = items.map(it => `<div class="li"><span class="sw" style="background:${it.color}"></span>${esc(it.label)}${it.extra? ' · '+esc(it.extra):''}</div>`).join('');
+}
+
+// ---------------- aggregation helpers ----------------
+function foldOther(entries, cap, otherLabel){
+  entries.sort((a,b)=> b.value-a.value);
+  if (entries.length <= cap) return entries;
+  const head = entries.slice(0, cap-1);
+  const restVal = entries.slice(cap-1).reduce((a,d)=>a+d.value,0);
+  head.push({label: otherLabel||'Otros', value: restVal, color: OTHER_COLOR});
+  return head;
+}
+
+// ---------------- KPI + chart rendering ----------------
+function computeKpis(rows){
+  const contratoSet = new Set(), clienteSet = new Set(), axilasContratos = new Set();
+  const contratoQi = new Map();
+  let vb=0, vl=0;
+  rows.forEach(r=>{
+    contratoSet.add(r[R.c]); clienteSet.add(r[R.cl]);
+    vb += r[R.vb]; vl += r[R.vl];
+    if (r[R.ax]===1) axilasContratos.add(r[R.c]);
+    if (!contratoQi.has(r[R.c])) contratoQi.set(r[R.c], r[R.qi]);
+  });
+  const totalContratos = contratoSet.size;
+  const totalClientes = clienteSet.size;
+  const qiVals = [...contratoQi.values()];
+  const avgQi = qiVals.length ? qiVals.reduce((a,b)=>a+b,0)/qiVals.length : 0;
+
+  // clientes sin pago (misma lógica que la hoja original, recalculada sobre el recorte filtrado)
+  const clientePago = new Set();
+  rows.forEach(r=>{ if (r[R.st]===STATUS_IDX_PAGO || r[R.st]===STATUS_IDX_TRANSFERIDO) clientePago.add(r[R.cl]); });
+  const sinPago = totalClientes - clientePago.size;
+
+  return {
+    vb, vl, totalContratos, totalClientes,
+    ticketProm: totalContratos ? vl/totalContratos : 0,
+    avgQi,
+    tasaAxilas: pct(axilasContratos.size, totalContratos),
+    clientePagoN: clientePago.size,
+    sinPago, sinPagoPct: pct(sinPago, totalClientes)
+  };
+}
+
+function renderKpis(rows){
+  const k = computeKpis(rows);
+  const grid = document.getElementById('kpiGrid');
+  const tiles = [
+    {label:'Valor bruto otorgado', value: fmtMoneyM(k.vb), sub:`${fmtMoney(k.vb)} ARS`},
+    {label:'Valor líquido otorgado', value: fmtMoneyM(k.vl), sub:`${fmtMoney(k.vl)} ARS`},
+    {label:'Contratos', value: fmtInt(k.totalContratos), sub:`${fmtInt(k.totalClientes)} clientes únicos`},
+    {label:'Ticket promedio (líquido)', value: fmtMoney(k.ticketProm), sub:'por contrato'},
+    {label:'Ítems promedio / contrato', value: k.avgQi.toFixed(2).replace('.',','), sub:'zonas por presupuesto'},
+    {label:'Contratos con Axilas', value: fmtPct(k.tasaAxilas), sub:'incluyen ítem Axilas'},
+    {label:'Clientes con Pago/Transferido', value: fmtInt(k.clientePagoN), sub:`de ${fmtInt(k.totalClientes)} clientes`},
+    {label:'Clientes sin pago registrado', value: fmtPct(k.sinPagoPct), sub:`${fmtInt(k.sinPago)} clientes`, warn:true},
+  ];
+  grid.innerHTML = tiles.map(t => `
+    <div class="kpi ${t.warn?'warn':''}">
+      <div class="k-label">${esc(t.label)}</div>
+      <div class="k-value tabular ${t.value.length>10?'small':''}">${t.value}</div>
+      <div class="k-sub">${esc(t.sub)}</div>
+    </div>`).join('');
+}
+
+function renderMonthly(rows){
+  const byMes = new Map();
+  mesOrder.forEach(({i})=> byMes.set(i, {vb:0, vl:0, contratos:new Set()}));
+  rows.forEach(r=>{
+    const b = byMes.get(r[R.m]); if(!b) return;
+    b.vb += r[R.vb]; b.vl += r[R.vl]; b.contratos.add(r[R.c]);
+  });
+  const cats = mesOrder.filter(o=>state.meses.has(o.i)).map(o=>MES_LABELS[o.m]||o.m);
+  const idxs = mesOrder.filter(o=>state.meses.has(o.i)).map(o=>o.i);
+
+  if (state.monthlyMode==='valor'){
+    const vlSeries = idxs.map(i=>byMes.get(i).vl);
+    const vbSeries = idxs.map(i=>byMes.get(i).vb);
+    renderLine('chartMonthly', [
+      {name:'Valor líquido', values:vlSeries, color:PALETTE[0], area:true},
+      {name:'Valor bruto', values:vbSeries, color:PALETTE[1]}
+    ], cats, {axisFmt:v=>fmtMoneyM(v), tooltipFmt:v=>fmtMoney(v)});
+    renderLegend('legendMonthly', [
+      {label:'Valor líquido', color:PALETTE[0]},
+      {label:'Valor bruto', color:PALETTE[1]}
+    ]);
+  } else {
+    const cSeries = idxs.map(i=>byMes.get(i).contratos.size);
+    renderLine('chartMonthly', [
+      {name:'Contratos', values:cSeries, color:PALETTE[0], area:true}
+    ], cats, {axisFmt:v=>fmtInt(v), tooltipFmt:v=>fmtInt(v)});
+    renderLegend('legendMonthly', [{label:'Contratos creados', color:PALETTE[0]}]);
+  }
+}
+
+function renderStatus(rows){
+  const byStatus = new Map();
+  rows.forEach(r=>{
+    const k = r[R.st];
+    if (!byStatus.has(k)) byStatus.set(k, {count:0, contratos:new Set()});
+    const b = byStatus.get(k); b.count++; b.contratos.add(r[R.c]);
+  });
+  let entries = [...byStatus.entries()].map(([idx,b])=>({label:DICTS.status[idx], value:b.count, contratos:b.contratos.size}));
+  entries = foldOther(entries, 7, 'Otros estados');
+  entries.forEach((e,i)=>{ if(!e.color) e.color = PALETTE[i]; });
+  renderDonut('chartStatus', entries, {centerLabel:'líneas de ítem'});
+  const total = entries.reduce((a,d)=>a+d.value,0);
+  renderLegend('legendStatus', entries.map(e=>({label:e.label, color:e.color, extra: fmtPct(pct(e.value,total))})));
+}
+
+function renderItems(rows){
+  const byItem = new Map();
+  rows.forEach(r=>{
+    const k = r[R.it];
+    if (!byItem.has(k)) byItem.set(k, {qty:0, vl:0, vb:0});
+    const b = byItem.get(k); b.qty++; b.vl += r[R.vl]; b.vb += r[R.vb];
+  });
+  const all = [...byItem.entries()].map(([idx,b])=>({idx, label:DICTS.item[idx], qty:b.qty, vl:b.vl, vb:b.vb}));
+
+  const sortKey = state.itemSort==='valor' ? 'vl' : 'qty';
+  const top = [...all].sort((a,b)=>b[sortKey]-a[sortKey]).slice(0,12)
+    .map((d,i)=>({label:d.label, value: state.itemSort==='valor'?d.vl:d.qty, color:PALETTE[0]}));
+  renderHBar('chartItems', top, {
+    labelW:170,
+    valueLabel: d => state.itemSort==='valor' ? fmtMoneyM(d.value) : fmtInt(d.value)+' u.',
+    tooltip: d => state.itemSort==='valor' ? fmtMoney(d.value) : fmtInt(d.value)+' líneas'
+  });
+
+  renderItemTable(rows, all);
+}
+
+let _lastItemAgg = null;
+function renderItemTable(rows, precomputed){
+  let all = precomputed;
+  if (!all){
+    const byItem = new Map();
+    rows.forEach(r=>{
+      const k = r[R.it];
+      if (!byItem.has(k)) byItem.set(k, {qty:0, vl:0, vb:0});
+      const b = byItem.get(k); b.qty++; b.vl += r[R.vl]; b.vb += r[R.vb];
+    });
+    all = [...byItem.entries()].map(([idx,b])=>({idx, label:DICTS.item[idx], qty:b.qty, vl:b.vl, vb:b.vb}));
+  }
+  _lastItemAgg = all;
+  const sortKey = state.itemSort==='valor' ? 'vl' : 'qty';
+  let list = [...all].sort((a,b)=>b[sortKey]-a[sortKey]);
+  if (state.itemSearch) list = list.filter(d=>d.label.toUpperCase().includes(state.itemSearch));
+  const tbody = document.querySelector('#itemTable tbody');
+  tbody.innerHTML = list.map(d => `<tr><td>${esc(d.label)}</td><td class="tabular">${fmtInt(d.qty)}</td><td class="tabular">${fmtMoney(d.vl)}</td><td class="tabular">${fmtMoney(d.vb)}</td></tr>`).join('')
+    || '<tr><td colspan="4" style="text-align:center; color:var(--muted);">Sin resultados</td></tr>';
+}
+
+function renderVendedor(rows){
+  const byV = new Map();
+  rows.forEach(r=>{
+    const k = r[R.v];
+    if (!byV.has(k)) byV.set(k, {vl:0, vb:0, contratos:new Set()});
+    const b = byV.get(k); b.vl += r[R.vl]; b.vb += r[R.vb]; b.contratos.add(r[R.c]);
+  });
+  const all = [...byV.entries()].map(([idx,b])=>({label:DICTS.vendedor[idx], value:b.vl, contratos:b.contratos.size}))
+    .sort((a,b)=>b.value-a.value);
+  renderHBar('chartVendedor', all.slice(0,8).map(d=>({...d, color:PALETTE[0]})), {
+    labelW:150,
+    valueLabel: d => fmtMoneyM(d.value),
+    tooltip: d => `${fmtMoney(d.value)}<br>${fmtInt(d.contratos)} contratos`
+  });
+  const tbody = document.querySelector('#vendedorTable tbody');
+  tbody.innerHTML = all.map(d => `<tr><td>${esc(d.label)}</td><td class="tabular">${fmtInt(d.contratos)}</td><td class="tabular">${fmtMoney(d.value)}</td><td class="tabular">${fmtMoney(d.contratos? d.value/d.contratos:0)}</td></tr>`).join('');
+}
+
+function renderMedia(rows, field, containerId, dict){
+  const byM = new Map();
+  rows.forEach(r=>{
+    const k = r[field];
+    if (!byM.has(k)) byM.set(k, {contratos:new Set()});
+    byM.get(k).contratos.add(r[R.c]);
+  });
+  let entries = [...byM.entries()].map(([idx,b])=>({label:dict[idx].trim(), value:b.contratos.size}));
+  entries = foldOther(entries, 8, 'Otros canales');
+  entries.forEach((e,i)=>{ if(!e.color) e.color = PALETTE[i]; });
+  renderHBar(containerId, entries, { labelW:150, valueLabel:d=>fmtInt(d.value)+' contr.', tooltip:d=>fmtInt(d.value)+' contratos' });
+}
+
+function renderQtde(rows){
+  const contratoQi = new Map();
+  rows.forEach(r=>{ if(!contratoQi.has(r[R.c])) contratoQi.set(r[R.c], r[R.qi]); });
+  const hist = new Map();
+  contratoQi.forEach(qi => hist.set(qi, (hist.get(qi)||0)+1));
+  const data = [...hist.entries()].sort((a,b)=>a[0]-b[0]).map(([qi,count],i,arr)=>({
+    label:String(qi), value:count, color: SEQ_BLUE[Math.min(SEQ_BLUE.length-1, Math.round((i/(arr.length-1||1))*(SEQ_BLUE.length-1)))]
+  }));
+  renderVBar('chartQtde', data, { tooltip:d=>fmtInt(d.value)+' contratos', axisFmt:v=>fmtInt(v) });
+}
+
+function renderGenero(rows){
+  const byG = new Map();
+  rows.forEach(r=>{
+    const k = r[R.g];
+    if(!byG.has(k)) byG.set(k, new Set());
+    byG.get(k).add(r[R.c]);
+  });
+  const entries = [...byG.entries()].map(([idx,set],i)=>({label:DICTS.genero[idx], value:set.size, color:PALETTE[i]}))
+    .sort((a,b)=>b.value-a.value);
+  renderDonut('chartGenero', entries, {centerLabel:'contratos', size:180});
+  const total = entries.reduce((a,d)=>a+d.value,0);
+  renderLegend('legendGenero', entries.map(e=>({label:e.label, color:e.color, extra:fmtPct(pct(e.value,total))})));
+}
+
+function renderSinPago(rows){
+  // cliente -> primer mes de aparición (dentro del recorte filtrado) y si alguna vez tuvo Pago/Transferido
+  const clienteFirstMes = new Map();
+  const clientePago = new Set();
+  rows.forEach(r=>{
+    const cl = r[R.cl], m = r[R.m];
+    if (!clienteFirstMes.has(cl) || DICTS.mes[m] < DICTS.mes[clienteFirstMes.get(cl)]) clienteFirstMes.set(cl, m);
+    if (r[R.st]===STATUS_IDX_PAGO || r[R.st]===STATUS_IDX_TRANSFERIDO) clientePago.add(cl);
+  });
+  const byMesSin = new Map(), byMesCon = new Map();
+  mesOrder.forEach(({i})=>{ byMesSin.set(i,0); byMesCon.set(i,0); });
+  clienteFirstMes.forEach((m, cl) => {
+    if (clientePago.has(cl)) byMesCon.set(m,(byMesCon.get(m)||0)+1);
+    else byMesSin.set(m,(byMesSin.get(m)||0)+1);
+  });
+  const idxs = mesOrder.filter(o=>state.meses.has(o.i)).map(o=>o.i);
+  const cats = idxs.map(i=>MES_LABELS[DICTS.mes[i]]||DICTS.mes[i]);
+  const data = idxs.map(i=>({label: MES_LABELS[DICTS.mes[i]]||DICTS.mes[i], value: byMesSin.get(i)||0, color: PALETTE[7]}));
+  renderVBar('chartSinPago', data, { height:200, tooltip:d=>fmtInt(d.value)+' clientes sin pago', axisFmt:v=>fmtInt(v) });
+  const totalCon = idxs.reduce((a,i)=>a+(byMesCon.get(i)||0),0);
+  const totalSin = idxs.reduce((a,i)=>a+(byMesSin.get(i)||0),0);
+  renderLegend('legendSinPago', [
+    {label:'Sin Pago/Transferido', color:PALETTE[7], extra: fmtInt(totalSin)+' clientes'},
+    {label:'Con Pago/Transferido', color:PALETTE[2], extra: fmtInt(totalCon)+' clientes'}
+  ]);
+}
+
+function updateCountPill(rows){
+  const k = computeKpis(rows);
+  document.getElementById('countPill').innerHTML = `<b>${fmtInt(k.totalContratos)}</b> de <b>${fmtInt(DICTS.contrato)}</b> contratos · <b>${fmtInt(k.totalClientes)}</b> de <b>${fmtInt(DICTS.cliente)}</b> clientes`;
+}
+
+function render(){
+  const rows = currentFiltered();
+  updateCountPill(rows);
+  renderKpis(rows);
+  renderMonthly(rows);
+  renderStatus(rows);
+  renderItems(rows);
+  renderVendedor(rows);
+  renderMedia(rows, R.mc, 'chartMediaCliente', DICTS.mediaCliente);
+  renderMedia(rows, R.mt, 'chartMediaContrato', DICTS.mediaContrato);
+  renderQtde(rows);
+  renderGenero(rows);
+  renderSinPago(rows);
+}
+
+let genStr;
+if (meta && meta.generatedAt) {
+  genStr = new Date(meta.generatedAt).toLocaleString('es-AR', {year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit'});
+} else {
+  genStr = new Date().toLocaleDateString('es-AR', {year:'numeric', month:'long', day:'numeric'}) + ' (fecha de generación desconocida)';
+}
+document.getElementById('genBadge').textContent = 'Sincronizado el ' + genStr;
+document.getElementById('genBadge2').textContent = 'Datos sincronizados el ' + genStr + (meta && meta.source ? ' · fuente: ' + meta.source : '') + '.';
+
+render();
+window.addEventListener('resize', () => { render(); });
+}
+boot();
+</script>
+</body>
+</html>
