@@ -17,8 +17,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.join(__dirname, '..', 'data');
 const API_BASE = process.env.EVUP_API_BASE || 'https://definit.api.evup.dev';
-const CONCURRENCY = Number(process.env.SYNC_CONCURRENCY || 2);
+const CONCURRENCY = Number(process.env.SYNC_CONCURRENCY || 1);
 const MAX_RETRIES = 7;
+// La API limita a 30 pedidos/minuto (ver headers ratelimit-* en las respuestas 429).
+// Nos autolimitamos por debajo de eso para no pisar el límite y desperdiciar pedidos en 429.
+const RATE_LIMIT_PER_MINUTE = Number(process.env.SYNC_RATE_LIMIT || 25);
+const RATE_WINDOW_MS = 60000;
 
 const LOGIN = process.env.EVUP_LOGIN;
 const PASSWORD = process.env.EVUP_PASSWORD;
@@ -62,6 +66,26 @@ const GENDER_LABELS = { nothing: 'NÃO INFORMADO', female: 'FEMININO', male: 'MA
 // ---------------- HTTP helpers ----------------
 let token = null;
 
+// Pacer proactivo: nunca deja pasar más de RATE_LIMIT_PER_MINUTE pedidos en
+// cualquier ventana de 60s, para no chocar contra el límite de la API en
+// primer lugar (evita desperdiciar pedidos en reintentos por 429).
+const requestTimestamps = [];
+let paceChain = Promise.resolve();
+function paceRequest() {
+  paceChain = paceChain.then(async () => {
+    const now = Date.now();
+    while (requestTimestamps.length && now - requestTimestamps[0] > RATE_WINDOW_MS) {
+      requestTimestamps.shift();
+    }
+    if (requestTimestamps.length >= RATE_LIMIT_PER_MINUTE) {
+      const waitMs = RATE_WINDOW_MS - (now - requestTimestamps[0]) + 50;
+      if (waitMs > 0) await sleep(waitMs);
+    }
+    requestTimestamps.push(Date.now());
+  });
+  return paceChain;
+}
+
 async function login() {
   const res = await fetch(`${API_BASE}/Auth/Login`, {
     method: 'POST',
@@ -87,6 +111,7 @@ async function login() {
 
 async function apiPost(pathName, body, { retry = true } = {}) {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    await paceRequest();
     const res = await fetch(`${API_BASE}${pathName}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -189,13 +214,14 @@ function makeDict() {
 
 // ---------------- main ----------------
 async function main() {
-  console.log(`Sincronizando desde ${API_BASE} ...`);
+  const t0 = Date.now();
+  console.log(`Sincronizando desde ${API_BASE} ... (límite autoimpuesto: ${RATE_LIMIT_PER_MINUTE} pedidos/min, concurrencia: ${CONCURRENCY})`);
   await login();
   console.log('Login OK.');
 
-  console.log('Listando clientes...');
+  console.log('Listando clientes (puede tardar varios minutos por el límite de la API)...');
   const rawClients = await fetchAllPages('/Client/List', { Filters: [], Sort: [{ Field: 'Id', Operation: 'asc' }] });
-  console.log(`Clientes encontrados: ${rawClients.length}`);
+  console.log(`Clientes encontrados: ${rawClients.length} (${Math.round((Date.now() - t0) / 1000)}s transcurridos)`);
 
   // Se anonimiza en el momento: solo se conserva id, género y canal de captación.
   const clients = rawClients.map((c) => ({
@@ -278,10 +304,15 @@ async function main() {
     }
 
     processed++;
-    if (processed % 100 === 0) console.log(`  ... ${processed}/${clients.length} clientes procesados`);
+    if (processed % 25 === 0 || processed === clients.length) {
+      const elapsedS = Math.round((Date.now() - t0) / 1000);
+      const rate = processed / elapsedS; // clientes/seg
+      const etaS = rate > 0 ? Math.round((clients.length - processed) / rate) : null;
+      console.log(`  ... ${processed}/${clients.length} clientes procesados (${elapsedS}s transcurridos${etaS != null ? `, ETA ~${Math.round(etaS / 60)}min` : ''})`);
+    }
   });
 
-  console.log(`Listo. Presupuestos vistos: ${budgetsSeen}. Líneas de ítem: ${rows.length}.`);
+  console.log(`Listo. Presupuestos vistos: ${budgetsSeen}. Líneas de ítem: ${rows.length}. Tiempo total: ${Math.round((Date.now() - t0) / 60000)}min.`);
 
   const dicts = {
     contrato: dictContrato.size,
