@@ -1,4 +1,4 @@
-name: Sync EVUP data
+name: .github/workflows/sync-data.yml
 
 on:
   schedule:
