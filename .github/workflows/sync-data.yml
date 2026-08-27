@@ -1,4 +1,4 @@
-name: .github/workflows/sync-data.yml
+name: Sync EVUP data
 
 on:
   schedule:
@@ -16,6 +16,9 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # La API limita a 30 pedidos/min; con ~1.750 clientes el sync completo
+    # puede tardar más de una hora. Damos margen generoso.
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@v4
