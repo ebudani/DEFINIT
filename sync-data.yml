@@ -1,0 +1,44 @@
+name: Sync EVUP data
+
+on:
+  schedule:
+    # 07:00 UTC = 04:00 America/Argentina (ART, UTC-3). Ajustar si hace falta otro horario.
+    - cron: '0 7 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-evup-data
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run sync
+        env:
+          EVUP_LOGIN: ${{ secrets.EVUP_LOGIN }}
+          EVUP_PASSWORD: ${{ secrets.EVUP_PASSWORD }}
+        run: node scripts/sync.mjs
+
+      - name: Commit data if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/dicts.json data/rows.json data/meta.json
+          if git diff --cached --quiet; then
+            echo "Sin cambios en los datos."
+          else
+            git commit -m "chore: sync data from EVUP API"
+            git push
+          fi
