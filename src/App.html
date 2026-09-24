@@ -1,0 +1,460 @@
+<script>
+(function () {
+  'use strict';
+
+  var estado = { datos: null, mes: null, grupo: 'propio', local: '', orden: { col: 'venta', dir: -1 } };
+  var graficos = {};
+  if (window.Chart) Chart.defaults.font.family = 'Montserrat, system-ui, -apple-system, "Segoe UI", sans-serif';
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- Formato ----------
+  var nf1 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  var nf0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+  function millones(v) { return '$' + nf1.format(v / 1e6) + ' M'; }
+  function pesos(v) { return '$' + nf0.format(v); }
+  function pct(v) { return v == null || !isFinite(v) ? '–' : nf1.format(v * 100) + '%'; }
+  function nombreMes(mes, corto) {
+    var n = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][+mes.slice(5, 7) - 1];
+    return corto ? n.slice(0, 3).replace(/^./, function (c) { return c.toUpperCase(); }) : n + ' ' + mes.slice(0, 4);
+  }
+  function fechaCorta(iso) { return +iso.slice(8, 10) + '/' + +iso.slice(5, 7); }
+  function diasDelMes(mes) { return new Date(+mes.slice(0, 4), +mes.slice(5, 7), 0).getDate(); }
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ---------- Modelo derivado ----------
+  function enGrupo(l) {
+    if (estado.grupo === 'todos') return true;
+    if (estado.grupo === 'propio') return l.tipo === 'propio' || l.tipo === 'ecom';
+    return l.tipo === 'franquicia';
+  }
+
+  /** Datos del mes para el grupo activo: locales, totales, días transcurridos y proyección. */
+  function calcularMes(mes) {
+    var d = estado.datos;
+    var res = d.meses.filter(function (m) { return m.mes === mes; })[0];
+    var locales = res.locales.filter(enGrupo);
+    var diario = d.diario[mes] || {};
+    var mesActual = (d.actualizado || '').slice(0, 7);
+    var abierto = mes >= mesActual;
+    var nDias = diasDelMes(mes);
+
+    // Último día con ventas del grupo (sin pasar la fecha de actualización).
+    var transcurridos = nDias;
+    if (abierto) {
+      transcurridos = 0;
+      locales.forEach(function (l) {
+        (diario[l.clave] || []).forEach(function (p) {
+          if (p[1] !== 0 && p[0] <= d.actualizado) transcurridos = Math.max(transcurridos, +p[0].slice(8, 10));
+        });
+      });
+      if (!transcurridos && d.actualizado && d.actualizado.slice(0, 7) === mes) transcurridos = +d.actualizado.slice(8, 10);
+    }
+    var restantes = nDias - transcurridos;
+
+    var total = { venta: 0, meta: 0, super: 0, proy: 0 };
+    var filas = locales.map(function (l) {
+      var proy = abierto && transcurridos ? l.venta / transcurridos * nDias : l.venta;
+      total.venta += l.venta; total.meta += l.meta; total.super += l.super; total.proy += proy;
+      return {
+        nombre: l.nombre, clave: l.clave, tipo: l.tipo, venta: l.venta, meta: l.meta, super: l.super, proy: proy,
+        pMeta: l.meta ? l.venta / l.meta : null,
+        pSuper: l.super ? l.venta / l.super : null,
+        pProy: l.meta ? proy / l.meta : null,
+        necesario: abierto && restantes > 0 ? Math.max(0, (l.super - l.venta) / restantes) : null
+      };
+    });
+    filas.forEach(function (f) { f.part = total.venta ? f.venta / total.venta : 0; });
+    return { mes: mes, abierto: abierto, nDias: nDias, transcurridos: transcurridos, restantes: restantes, filas: filas, total: total, diario: diario };
+  }
+
+  function estadoLocal(f, abierto) {
+    if (f.meta && f.venta >= f.super && f.super) return { txt: 'Súper', icono: '★', color: css('--good') };
+    if (f.meta && f.venta >= f.meta) return { txt: 'Meta', icono: '✓', color: css('--good') };
+    if (!f.meta) return { txt: 'Sin meta', icono: '·', color: css('--muted') };
+    if (abierto) return f.proy >= f.meta
+      ? { txt: 'En camino', icono: '↗', color: css('--warning') }
+      : { txt: 'En riesgo', icono: '!', color: css('--critical') };
+    return { txt: 'Bajo meta', icono: '✕', color: css('--critical') };
+  }
+
+  // ---------- Render ----------
+  function render() {
+    var c = calcularMes(estado.mes);
+    renderKpis(c);
+    renderRanking(c);
+    renderRitmo(c);
+    renderDiaria(c);
+    renderEvolucion();
+    renderMapa();
+  }
+
+  function renderKpis(c) {
+    var t = c.total;
+    var enMeta = c.filas.filter(function (f) { return f.meta && f.venta >= f.meta; }).length;
+    var enSuper = c.filas.filter(function (f) { return f.super && f.venta >= f.super; }).length;
+    var conMeta = c.filas.filter(function (f) { return f.meta; }).length;
+    var medidor = function (v) {
+      // Escala 0–150%; la marca vertical es el 100%.
+      return '<div class="medidor" aria-hidden="true"><i style="width:' + Math.min(100, (v || 0) / 1.5 * 100) + '%"></i><b style="left:' + (100 / 1.5) + '%"></b></div>';
+    };
+    var tiles = [
+      { cls: 'hero', label: 'Venta ' + (c.abierto ? 'al ' + c.transcurridos + '/' + +c.mes.slice(5, 7) : 'del mes'), valor: millones(t.venta),
+        det: c.filas.length + ' locales · ' + (c.abierto ? 'día ' + c.transcurridos + ' de ' + c.nDias : 'mes cerrado') },
+      { label: 'Cumplimiento de Meta', valor: pct(t.venta / t.meta), det: 'Meta ' + millones(t.meta), extra: medidor(t.venta / t.meta) },
+      { label: 'Cumplimiento de Súper', valor: pct(t.venta / t.super), det: 'Súper ' + millones(t.super), extra: medidor(t.venta / t.super) },
+      c.abierto
+        ? { label: 'Proyección de cierre', valor: millones(t.proy), det: pct(t.proy / t.meta) + ' de la Meta · ' + pct(t.proy / t.super) + ' del Súper' }
+        : { label: 'Cierre del mes', valor: millones(t.venta), det: 'Mes cerrado' },
+      { label: 'Locales en Meta', valor: enMeta + ' de ' + conMeta, det: enSuper + ' también en Súper' }
+    ];
+    var el = $('kpis');
+    el.innerHTML = tiles.map(function (k) {
+      return '<div class="kpi ' + (k.cls || '') + '"><div class="kpi-label">' + k.label + '</div><div class="kpi-valor">' + k.valor +
+        '</div><div class="kpi-det">' + k.det + '</div>' + (k.extra || '') + '</div>';
+    }).join('');
+    el.hidden = false;
+  }
+
+  var COLUMNAS = [
+    { id: 'pos', th: '#', izq: true },
+    { id: 'nombre', th: 'Local', izq: true, orden: true },
+    { id: 'venta', th: 'Venta', orden: true },
+    { id: 'part', th: 'Participación', orden: true },
+    { id: 'pMeta', th: '% Meta', orden: true },
+    { id: 'pSuper', th: '% Súper', orden: true },
+    { id: 'pProy', th: 'Proyección vs Meta', orden: true, soloAbierto: true },
+    { id: 'necesario', th: 'Necesario/día p/ Súper', orden: true, soloAbierto: true },
+    { id: 'estado', th: 'Estado', izq: true }
+  ];
+
+  function renderRanking(c) {
+    var cols = COLUMNAS.filter(function (col) { return c.abierto || !col.soloAbierto; });
+    var o = estado.orden;
+    if (!cols.some(function (col) { return col.id === o.col; })) { o.col = 'venta'; o.dir = -1; }
+    var filas = c.filas.slice().sort(function (a, b) {
+      var va = a[o.col], vb = b[o.col];
+      if (typeof va === 'string') return va.localeCompare(vb, 'es') * o.dir;
+      return ((va == null ? -Infinity : va) - (vb == null ? -Infinity : vb)) * o.dir;
+    });
+    var porVenta = c.filas.slice().sort(function (a, b) { return b.venta - a.venta; });
+    var maxPart = Math.max.apply(null, c.filas.map(function (f) { return f.part; }).concat([0.0001]));
+
+    var celda = {
+      pos: function (f) { return '<td class="pos">' + (porVenta.indexOf(f) + 1) + '</td>'; },
+      nombre: function (f) { return '<td class="izq">' + esc(f.nombre) + (f.tipo === 'ecom' ? ' <span class="nota">(online)</span>' : '') + '</td>'; },
+      venta: function (f) { return '<td title="' + pesos(f.venta) + '">' + millones(f.venta) + '</td>'; },
+      part: function (f) {
+        return '<td><div class="barra-celda"><span>' + pct(f.part) + '</span><span class="barra" aria-hidden="true"><i style="width:' + (f.part / maxPart * 100) + '%"></i></span></div></td>';
+      },
+      pMeta: function (f) {
+        if (f.pMeta == null) return '<td>–</td>';
+        return '<td><div class="barra-celda"><span>' + pct(f.pMeta) + '</span><span class="barra" aria-hidden="true"><i style="width:' +
+          Math.min(100, f.pMeta / 1.5 * 100) + '%"></i><b></b></span></div></td>';
+      },
+      pSuper: function (f) { return '<td>' + pct(f.pSuper) + '</td>'; },
+      pProy: function (f) { return '<td class="' + (f.pProy != null && f.pProy < 1 ? 'neg' : '') + '">' + pct(f.pProy) + '</td>'; },
+      necesario: function (f) { return '<td>' + (f.necesario == null ? '–' : f.necesario === 0 ? 'Logrado' : millones(f.necesario)) + '</td>'; },
+      estado: function (f) {
+        var e = estadoLocal(f, c.abierto);
+        return '<td class="izq"><span class="chip"><i style="background:' + e.color + '"></i>' + e.icono + ' ' + e.txt + '</span></td>';
+      }
+    };
+
+    var t = c.total;
+    var pie = {
+      pos: '', nombre: 'Total', venta: millones(t.venta), part: '100%', pMeta: pct(t.venta / t.meta), pSuper: pct(t.venta / t.super),
+      pProy: pct(t.proy / t.meta), necesario: c.restantes > 0 ? millones(Math.max(0, (t.super - t.venta) / c.restantes)) : '–', estado: ''
+    };
+
+    $('tabla-ranking').innerHTML =
+      '<thead><tr>' + cols.map(function (col) {
+        var sort = col.id === o.col ? (o.dir < 0 ? 'descending' : 'ascending') : null;
+        return '<th' + (col.izq ? ' class="izq"' : '') + (col.orden ? ' data-orden="' + col.id + '" tabindex="0"' : '') +
+          (sort ? ' aria-sort="' + sort + '"' : '') + ' scope="col">' + col.th + '</th>';
+      }).join('') + '</tr></thead>' +
+      '<tbody>' + filas.map(function (f) { return '<tr>' + cols.map(function (col) { return celda[col.id](f); }).join('') + '</tr>'; }).join('') + '</tbody>' +
+      '<tfoot><tr>' + cols.map(function (col) { return '<td' + (col.izq ? ' class="izq"' : '') + '>' + pie[col.id] + '</td>'; }).join('') + '</tr></tfoot>';
+
+    $('nota-ranking').textContent = c.abierto
+      ? 'Proyección = venta a la fecha ÷ ' + c.transcurridos + ' días × ' + c.nDias + ' días. Necesario/día = lo que falta para el Súper ÷ ' + c.restantes + ' días restantes. La barra marca el 100% de la Meta.'
+      : 'Mes cerrado. La barra de % Meta marca el 100%.';
+    $('panel-ranking').hidden = false;
+  }
+
+  // ---------- Gráficos ----------
+  function baseOpciones() {
+    var grid = css('--grid'), muted = css('--muted'), ink = css('--ink');
+    return {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: css('--surface'), titleColor: ink, bodyColor: ink, borderColor: css('--axis'), borderWidth: 1,
+          padding: 10, boxPadding: 4, usePointStyle: true
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, border: { color: css('--axis') }, ticks: { color: muted, maxRotation: 0, autoSkipPadding: 10 } },
+        y: { grid: { color: grid }, border: { display: false }, ticks: { color: muted, callback: function (v) { return '$' + nf0.format(v / 1e6) + ' M'; } }, beginAtZero: true }
+      }
+    };
+  }
+
+  function dibujar(id, config) {
+    if (graficos[id]) graficos[id].destroy();
+    graficos[id] = new Chart($(id), config);
+  }
+
+  /** Serie diaria (fecha, venta) del local elegido o del grupo completo. */
+  function serieDiaria(c) {
+    var claves = estado.local ? [estado.local] : c.filas.map(function (f) { return f.clave; });
+    var porFecha = {};
+    for (var dia = 1; dia <= c.nDias; dia++) porFecha[c.mes + '-' + (dia < 10 ? '0' : '') + dia] = 0;
+    claves.forEach(function (k) {
+      (c.diario[k] || []).forEach(function (p) { if (p[0] in porFecha) porFecha[p[0]] += p[1]; });
+    });
+    return Object.keys(porFecha).sort().map(function (f) { return [f, porFecha[f]]; });
+  }
+
+  function alcance(c) {
+    if (!estado.local) return { nombre: grupoTexto(), meta: c.total.meta, super: c.total.super };
+    var f = c.filas.filter(function (x) { return x.clave === estado.local; })[0];
+    return f ? { nombre: f.nombre, meta: f.meta, super: f.super } : { nombre: estado.local, meta: 0, super: 0 };
+  }
+
+  function grupoTexto() {
+    return { propio: 'locales propios', franquicia: 'franquicias', todos: 'todos los locales' }[estado.grupo];
+  }
+
+  function renderRitmo(c) {
+    var serie = serieDiaria(c), a = alcance(c);
+    var hasta = c.transcurridos, acum = 0;
+    var etiquetas = serie.map(function (p) { return fechaCorta(p[0]); });
+    var acumulado = serie.map(function (p, i) { acum += p[1]; return i < hasta ? acum : null; });
+    var ventaAlCorte = hasta ? acumulado[hasta - 1] : 0;
+    var ritmo = hasta ? ventaAlCorte / hasta : 0;
+    var proyectado = serie.map(function (p, i) { return c.abierto && hasta && i >= hasta - 1 ? ventaAlCorte + ritmo * (i + 1 - hasta) : null; });
+    var linea = function (v) { return serie.map(function () { return v; }); };
+
+    var s1 = css('--series-1'), ref = css('--ref'), muted = css('--muted');
+    var ds = [
+      { label: 'Venta acumulada', data: acumulado, borderColor: s1, backgroundColor: css('--series-1-wash'), fill: 'origin', borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0 },
+      { label: 'Proyección', data: proyectado, borderColor: s1, borderDash: [5, 4], borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, fill: false },
+      { label: 'Meta', data: linea(a.meta), borderColor: ref, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0, fill: false },
+      { label: 'Súper', data: linea(a.super), borderColor: muted, borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0, pointHoverRadius: 0, fill: false }
+    ];
+    if (!c.abierto) ds.splice(1, 1);
+    var op = baseOpciones();
+    op.plugins.tooltip.callbacks = { label: function (ctx) { return ctx.raw == null ? null : ' ' + ctx.dataset.label + ': ' + millones(ctx.raw); } };
+    op.plugins.tooltip.filter = function (item) { return item.raw != null; };
+    dibujar('ch-ritmo', { type: 'line', data: { labels: etiquetas, datasets: ds } , options: op });
+
+    $('leyenda-ritmo').innerHTML =
+      '<span><i style="border-color:' + s1 + '"></i>Venta acumulada</span>' +
+      (c.abierto ? '<span><i class="punteada" style="border-color:' + s1 + '"></i>Proyección al ritmo actual</span>' : '') +
+      '<span><i style="border-color:' + ref + '"></i>Meta ' + millones(a.meta) + '</span>' +
+      '<span><i class="punteada" style="border-color:' + muted + '"></i>Súper ' + millones(a.super) + '</span>';
+    $('nota-ritmo').textContent = a.nombre.replace(/^./, function (x) { return x.toUpperCase(); }) + ' · ' + nombreMes(c.mes) +
+      (c.abierto && hasta ? ' · cierre proyectado ' + millones(ritmo * c.nDias) : '');
+  }
+
+  function renderDiaria(c) {
+    var serie = serieDiaria(c), a = alcance(c);
+    var hasta = c.abierto ? c.transcurridos : c.nDias;
+    var datos = serie.map(function (p, i) { return i < hasta ? p[1] : null; });
+    var op = baseOpciones();
+    op.interaction = { mode: 'nearest', axis: 'x', intersect: false };
+    op.plugins.tooltip.callbacks = {
+      title: function (items) { var f = serie[items[0].dataIndex][0]; return new Date(f + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }); },
+      label: function (ctx) { return ' Venta: ' + pesos(ctx.raw); }
+    };
+    dibujar('ch-diaria', {
+      type: 'bar',
+      data: { labels: serie.map(function (p) { return fechaCorta(p[0]); }), datasets: [{
+        label: 'Venta', data: datos, backgroundColor: css('--series-1'), maxBarThickness: 24,
+        borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start', borderWidth: 0
+      }] },
+      options: op
+    });
+    var conVenta = datos.filter(function (v) { return v; });
+    var prom = conVenta.length ? conVenta.reduce(function (x, y) { return x + y; }, 0) / conVenta.length : 0;
+    $('nota-diaria').textContent = a.nombre.replace(/^./, function (x) { return x.toUpperCase(); }) + ' · promedio ' + millones(prom) + ' por día con venta';
+  }
+
+  function renderEvolucion() {
+    var d = estado.datos;
+    var meses = d.meses.map(function (m) { return m.mes; });
+    var puntos = meses.map(function (mes) {
+      var c = calcularMes(mes);
+      var fs = estado.local ? c.filas.filter(function (f) { return f.clave === estado.local; }) : c.filas;
+      var s = fs.reduce(function (acc, f) { acc.venta += f.venta; acc.meta += f.meta; acc.proy += f.proy; return acc; }, { venta: 0, meta: 0, proy: 0 });
+      s.abierto = c.abierto;
+      return s;
+    });
+    var s1 = css('--series-1'), ref = css('--ref');
+    var op = baseOpciones();
+    op.plugins.tooltip.callbacks = {
+      label: function (ctx) {
+        var p = puntos[ctx.dataIndex];
+        if (ctx.datasetIndex === 1) return ' Meta: ' + millones(ctx.raw);
+        return ' Venta: ' + millones(ctx.raw) + ' (' + pct(p.meta ? p.venta / p.meta : null) + ' de la Meta)' + (p.abierto ? ' · en curso' : '');
+      }
+    };
+    dibujar('ch-evolucion', {
+      type: 'bar',
+      data: {
+        labels: meses.map(function (m, i) { return nombreMes(m, true) + (puntos[i].abierto ? ' (en curso)' : ''); }),
+        datasets: [
+          { type: 'bar', label: 'Venta', data: puntos.map(function (p) { return p.venta; }), backgroundColor: s1, maxBarThickness: 24, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start', order: 2 },
+          { type: 'line', label: 'Meta', data: puntos.map(function (p) { return p.meta; }), borderColor: ref, backgroundColor: ref, borderWidth: 2, pointRadius: 4, pointBorderColor: css('--surface'), pointBorderWidth: 2, order: 1 }
+        ]
+      },
+      options: op
+    });
+    $('leyenda-evolucion').innerHTML =
+      '<span><i class="caja" style="background:' + s1 + '"></i>Venta</span><span><i style="border-color:' + ref + '"></i>Meta</span>';
+    var nombre = estado.local ? (alcance(calcularMes(estado.mes)).nombre) : grupoTexto();
+    var ultimo = puntos.length > 1 ? puntos[puntos.length - 2] : null, primero = puntos[0];
+    $('nota-evolucion').textContent = nombre.replace(/^./, function (x) { return x.toUpperCase(); }) +
+      (ultimo && primero && primero.venta ? ' · último mes cerrado vs ' + nombreMes(meses[0], true).toLowerCase() + ': ' +
+        (ultimo.venta >= primero.venta ? '+' : '') + pct(ultimo.venta / primero.venta - 1) + ' (nominal, sin ajustar por inflación)' : '');
+  }
+
+  // Semáforo contra el Súper (el objetivo con el que la planilla marca ✅/❌ los
+  // meses cerrados): verde = llegó, amarillo = casi, naranja/rojo = lejos.
+  // Cada tramo trae su color de texto para que se lea igual en modo claro y oscuro.
+  var ESCALA = [
+    { hasta: 0.90, fondo: '#d03b3b', texto: '#ffffff', lbl: '< 90%' },
+    { hasta: 0.97, fondo: '#f08a3c', texto: '#1a1a19', lbl: '90–97%' },
+    { hasta: 1.00, fondo: '#f7c948', texto: '#1a1a19', lbl: '97–100%' },
+    { hasta: 1.10, fondo: '#8fd48f', texto: '#1a1a19', lbl: '100–110%' },
+    { hasta: Infinity, fondo: '#1f8a3b', texto: '#ffffff', lbl: '≥ 110%' }
+  ];
+  function colorCelda(v) {
+    return ESCALA.filter(function (e) { return v < e.hasta; })[0];
+  }
+
+  function renderMapa() {
+    var d = estado.datos;
+    var calc = d.meses.map(function (m) { return calcularMes(m.mes); });
+    var ultimo = calc[calc.length - 1];
+    var orden = {};
+    ultimo.filas.forEach(function (f) { orden[f.clave] = f.venta; });
+    var locales = {};
+    calc.forEach(function (c) { c.filas.forEach(function (f) { if (!locales[f.clave]) locales[f.clave] = f.nombre; }); });
+    var claves = Object.keys(locales).sort(function (a, b) { return (orden[b] || 0) - (orden[a] || 0); });
+
+    var html = '<thead><tr><th class="izq" scope="col">Local</th>' + calc.map(function (c) {
+      return '<th scope="col"' + (c.abierto ? ' class="en-curso"' : '') + '>' + nombreMes(c.mes, true) + (c.abierto ? ' · proy.' : '') + '</th>';
+    }).join('') + '</tr></thead><tbody>';
+    claves.forEach(function (k) {
+      html += '<tr><td class="izq">' + esc(locales[k]) + '</td>';
+      calc.forEach(function (c) {
+        var f = c.filas.filter(function (x) { return x.clave === k; })[0];
+        var v = f && f.super ? (c.abierto ? f.proy / f.super : f.pSuper) : null;
+        if (v == null) { html += '<td class="celda">–</td>'; return; }
+        var col = colorCelda(v);
+        html += '<td class="celda" style="background:' + col.fondo + ';color:' + col.texto + '" data-tip="' +
+          esc('<strong>' + locales[k] + ' · ' + nombreMes(c.mes) + '</strong>Venta ' + millones(f.venta) + ' · Súper ' + millones(f.super) +
+            (c.abierto ? '<br>Proyectado ' + millones(f.proy) + ' (' + pct(v) + ' del Súper)' : '<br>' + pct(v) + ' del Súper · ' + pct(f.pMeta) + ' de la Meta')) +
+          '">' + pct(v).replace(',0%', '%') + '</td>';
+      });
+      html += '</tr>';
+    });
+    $('tabla-mapa').innerHTML = html + '</tbody>';
+    $('escala-mapa').innerHTML = ESCALA.map(function (e) {
+      return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px"><i style="background:' + colorCelda(e.hasta === Infinity ? 1.3 : e.hasta - 0.001).fondo + '"></i>' + e.lbl + '</span>';
+    }).join('');
+    $('panel-mapa').hidden = false;
+  }
+
+  // ---------- Controles ----------
+  function llenarLocales() {
+    var c = calcularMes(estado.mes);
+    var sel = $('f-local');
+    var existe = c.filas.some(function (f) { return f.clave === estado.local; });
+    if (!existe) estado.local = '';
+    sel.innerHTML = '<option value="">Total ' + grupoTexto() + '</option>' +
+      c.filas.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); })
+        .map(function (f) { return '<option value="' + esc(f.clave) + '"' + (f.clave === estado.local ? ' selected' : '') + '>' + esc(f.nombre) + '</option>'; }).join('');
+  }
+
+  function iniciarControles() {
+    $('f-mes').addEventListener('change', function (e) { estado.mes = e.target.value; llenarLocales(); render(); });
+    $('f-local').addEventListener('change', function (e) { estado.local = e.target.value; render(); });
+    $('f-grupo').addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      estado.grupo = b.dataset.v;
+      Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.setAttribute('aria-checked', String(x === b)); });
+      llenarLocales(); render();
+    });
+    $('tabla-ranking').addEventListener('click', ordenar);
+    $('tabla-ranking').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ordenar(e); } });
+    $('btn-actualizar').addEventListener('click', cargar);
+
+    var tip = $('tooltip');
+    $('tabla-mapa').addEventListener('mousemove', function (e) {
+      var td = e.target.closest('td[data-tip]');
+      if (!td) { tip.hidden = true; return; }
+      tip.innerHTML = td.getAttribute('data-tip');
+      tip.hidden = false;
+      var x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+      tip.style.left = x + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+    });
+    $('tabla-mapa').addEventListener('mouseleave', function () { tip.hidden = true; });
+
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { if (estado.datos) render(); });
+    }
+  }
+
+  function ordenar(e) {
+    var th = e.target.closest('th[data-orden]'); if (!th) return;
+    var col = th.getAttribute('data-orden');
+    if (estado.orden.col === col) estado.orden.dir *= -1;
+    else estado.orden = { col: col, dir: col === 'nombre' ? 1 : -1 };
+    renderRanking(calcularMes(estado.mes));
+  }
+
+  // ---------- Carga ----------
+  function cargar() {
+    var btn = $('btn-actualizar');
+    btn.disabled = true; btn.textContent = 'Actualizando…';
+    $('app').setAttribute('aria-busy', 'true');
+    google.script.run
+      .withSuccessHandler(function (json) {
+        var d = JSON.parse(json);
+        var mesPrevio = estado.mes;
+        estado.datos = d;
+        var meses = d.meses.map(function (m) { return m.mes; });
+        estado.mes = meses.indexOf(mesPrevio) >= 0 ? mesPrevio : meses[meses.length - 1];
+        $('f-mes').innerHTML = meses.slice().reverse().map(function (m) {
+          return '<option value="' + m + '"' + (m === estado.mes ? ' selected' : '') + '>' + nombreMes(m).replace(/^./, function (x) { return x.toUpperCase(); }) + '</option>';
+        }).join('');
+        var act = d.actualizado ? new Date(d.actualizado + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : 's/d';
+        $('fuente').textContent = (d.planilla || 'Facturación 2026') + ' · datos al ' + act + ' · leído ' +
+          new Date(d.generado).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' h';
+        $('estado').hidden = true;
+        $('graficos-mes').hidden = false;
+        $('panel-evolucion').hidden = false;
+        llenarLocales();
+        render();
+        $('app').setAttribute('aria-busy', 'false');
+        btn.disabled = false; btn.textContent = 'Actualizar';
+      })
+      .withFailureHandler(function (err) {
+        var el = $('estado');
+        el.hidden = false; el.className = 'estado error';
+        el.textContent = 'No se pudo leer la planilla: ' + (err && err.message ? err.message : err);
+        $('app').setAttribute('aria-busy', 'false');
+        btn.disabled = false; btn.textContent = 'Reintentar';
+      })
+      .getData();
+  }
+
+  iniciarControles();
+  cargar();
+})();
+</script>

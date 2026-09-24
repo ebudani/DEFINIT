@@ -1,0 +1,66 @@
+# Publica el tablero en Google Apps Script en cada push a main que toque src/.
+#
+# Necesita (Settings → Secrets and variables → Actions):
+#   CLASPRC_JSON   contenido de ~/.clasprc.json después de `npx clasp login`
+#   DEPLOYMENT_ID  ID de la implementación web (npx clasp deployments)
+# y el archivo .clasp.json commiteado en la raíz (lo crea `npx clasp create`).
+#
+# Actualiza siempre la MISMA implementación, así la URL del tablero no cambia.
+name: Publicar tablero
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.clasp.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publicar-tablero
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verificar configuración
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          falta=0
+          [ -f .clasp.json ] || { echo "::error::Falta .clasp.json en el repo (ver README, paso 3)."; falta=1; }
+          [ -n "$CLASPRC_JSON" ] || { echo "::error::Falta el secret CLASPRC_JSON (ver README)."; falta=1; }
+          [ -n "$DEPLOYMENT_ID" ] || { echo "::error::Falta el secret DEPLOYMENT_ID (ver README)."; falta=1; }
+          exit $falta
+
+      - name: Probar el parser
+        run: node -e "require('./src/Parser.js')"
+
+      - name: Instalar clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Subir código a Apps Script
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          chmod 600 ~/.clasprc.json
+          clasp push --force
+
+      - name: Actualizar la implementación web
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}"
+
+      - name: Borrar credenciales
+        if: always()
+        run: rm -f ~/.clasprc.json

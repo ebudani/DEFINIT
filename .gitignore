@@ -1,0 +1,11 @@
+# Datos de ventas: nunca al repo
+dev/raw.json
+dev/index.html
+*.xlsx
+*.csv
+
+# Credenciales de clasp (se guardan en ~/.clasprc.json, pero por las dudas)
+.clasprc.json
+
+node_modules/
+.claude/

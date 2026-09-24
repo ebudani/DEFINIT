@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEFINIT: Tablero Mensual de Ventas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+  <header class="marca">
+    <a class="marca-logo" href="https://definit.com.ar/" target="_blank" rel="noopener">
+      <svg class="logo" viewBox="20 20 410 124" role="img" aria-label="DEFINIT" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#fff" d="M366.97,99.94h-11.28v-37.72h11.28c10.42,0,18.86,8.44,18.86,18.86s-8.44,18.86-18.86,18.86Z"/>
+            <path class="logo-circulo" fill-rule="evenodd" d="M366.98,24.5c-31.25,0-56.58,25.33-56.58,56.58s25.33,56.58,56.58,56.58,56.58-25.33,56.58-56.58-25.33-56.58-56.58-56.58ZM366.97,99.94h-11.28v-37.72h11.28c10.42,0,18.86,8.44,18.86,18.86s-8.44,18.86-18.86,18.86Z"/>
+            <g fill="currentColor">
+              <path d="M26.25,53.76h16.62c16.39,0,26.91,10.67,26.91,27.37s-10.52,27.37-26.91,27.37h-16.62v-54.74ZM42.87,103.85c13.42,0,21.65-9.07,21.65-22.72s-8.24-22.72-21.73-22.72h-11.28v45.44h11.36Z"/>
+              <polygon points="114.47 53.76 114.47 58.41 85.11 58.41 85.11 77.85 110.04 77.85 110.04 82.5 85.11 82.5 85.11 103.85 114.47 103.85 114.47 108.5 79.77 108.5 79.77 53.76 114.47 53.76"/>
+              <polygon points="125.22 108.5 125.22 53.76 159.75 53.76 159.75 58.41 130.55 58.41 130.55 78.31 155.33 78.31 155.33 82.96 130.55 82.96 130.55 108.5 125.22 108.5"/>
+              <rect x="169.67" y="53.76" width="5.34" height="54.74"/>
+              <polygon points="230.2 108.5 225.63 108.5 193.68 61.3 193.68 108.5 188.5 108.5 188.5 53.76 194.37 53.76 225.02 99.2 225.02 53.76 230.2 53.76 230.2 108.5"/>
+              <rect x="243.7" y="53.76" width="5.34" height="54.74"/>
+              <polygon points="281.82 58.41 281.82 108.5 276.56 108.5 276.56 58.41 257.2 58.41 257.2 53.76 301.19 53.76 301.19 58.41 281.82 58.41"/>
+            </g>
+          </svg>
+    </a>
+    <button type="button" id="btn-actualizar" class="btn">Actualizar</button>
+  </header>
+  <div class="titulo">
+    <h1>DEFINIT: Tablero Mensual de Ventas</h1>
+    <p class="sub" id="fuente">Leyendo Facturación 2026…</p>
+  </div>
+
+  <nav class="filtros" aria-label="Filtros">
+    <label class="campo">
+      <span>Mes</span>
+      <select id="f-mes"></select>
+    </label>
+    <div class="campo">
+      <span id="lbl-grupo">Grupo</span>
+      <div class="segmentado" role="radiogroup" aria-labelledby="lbl-grupo" id="f-grupo">
+        <button type="button" role="radio" data-v="propio" aria-checked="true">Propios</button>
+        <button type="button" role="radio" data-v="franquicia" aria-checked="false">Franquicias</button>
+        <button type="button" role="radio" data-v="todos" aria-checked="false">Todos</button>
+      </div>
+    </div>
+    <label class="campo">
+      <span>Local (gráficos)</span>
+      <select id="f-local"></select>
+    </label>
+  </nav>
+
+  <main id="app" aria-busy="true">
+    <p class="estado" id="estado">Cargando datos de la planilla…</p>
+
+    <section class="kpis" id="kpis" hidden></section>
+
+    <section class="panel" id="panel-ranking" hidden>
+      <div class="panel-head">
+        <h2>Ranking de locales</h2>
+        <p class="nota" id="nota-ranking"></p>
+      </div>
+      <div class="tabla-scroll">
+        <table class="ranking" id="tabla-ranking"></table>
+      </div>
+    </section>
+
+    <div class="grid-2" id="graficos-mes" hidden>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Ritmo del mes</h2>
+          <p class="nota" id="nota-ritmo"></p>
+        </div>
+        <div class="leyenda" id="leyenda-ritmo"></div>
+        <div class="chart"><canvas id="ch-ritmo" aria-label="Venta acumulada del mes contra Meta y Súper"></canvas></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Venta diaria</h2>
+          <p class="nota" id="nota-diaria"></p>
+        </div>
+        <div class="chart"><canvas id="ch-diaria" aria-label="Venta por día"></canvas></div>
+      </section>
+    </div>
+
+    <section class="panel" id="panel-evolucion" hidden>
+      <div class="panel-head">
+        <h2>Evolución mensual</h2>
+        <p class="nota" id="nota-evolucion"></p>
+      </div>
+      <div class="leyenda" id="leyenda-evolucion"></div>
+      <div class="chart chart-alto"><canvas id="ch-evolucion" aria-label="Venta y Meta por mes"></canvas></div>
+    </section>
+
+    <section class="panel" id="panel-mapa" hidden>
+      <div class="panel-head">
+        <h2>Cumplimiento de Súper por local y mes</h2>
+        <p class="nota">Venta ÷ Súper (la planilla da el mes por cumplido ✅ al llegar al Súper). En el mes en curso se muestra el cumplimiento <strong>proyectado</strong> al cierre.</p>
+      </div>
+      <div class="escala" id="escala-mapa"></div>
+      <div class="tabla-scroll">
+        <table class="mapa" id="tabla-mapa"></table>
+      </div>
+    </section>
+  </main>
+
+  <div class="tooltip" id="tooltip" role="status" hidden></div>
+
+  <?!= include('App'); ?>
+</body>
+</html>

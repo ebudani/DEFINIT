@@ -1,0 +1,14 @@
+{
+  "name": "definit-tablero",
+  "private": true,
+  "description": "Tablero de ventas DEFINIT: web app de Google Apps Script que lee Facturación 2026 en vivo.",
+  "scripts": {
+    "login": "clasp login",
+    "push": "clasp push",
+    "crear-implementacion": "clasp push --force && clasp deploy --description \"Primera implementación\"",
+    "preview": "node dev/build-preview.js"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}

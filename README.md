@@ -1,74 +1,133 @@
-# Tablero DEFINIT — Ventas y Otorgamiento por Ítem
+# DEFINIT: Tablero Mensual de Ventas
 
-Tablero interactivo (HTML/JS puro, sin frameworks) que lee datos agregados y
-anonimizados desde `data/*.json`. Esos archivos se generan de dos formas
-posibles:
+Tablero web que lee **Facturación 2026** (Google Sheets) en vivo y muestra:
 
-1. **Automática (recomendada):** un GitHub Action (`.github/workflows/sync-data.yml`)
-   corre diariamente, se loguea en la API EVUP con credenciales guardadas como
-   *secrets* del repo, y sobreescribe `data/dicts.json`, `data/rows.json` y
-   `data/meta.json`.
-2. **Manual:** exportando el Excel de otorgamiento y regenerando los mismos
-   tres archivos (como se hizo para la primera versión del tablero).
+- Venta por local, por día y por mes
+- % de cumplimiento de Meta y de Súper
+- Ranking de locales y evolución mensual de cada uno
+- Proyección de cierre del mes (venta a la fecha + ritmo diario)
+- Participación de cada local en el total
 
-En ningún caso el HTML público contiene credenciales, ni nombre/teléfono/e-mail/
-CPF/CNPJ/domicilio de clientes — solo campos agregados (vendedora, ítem,
-estado, canal, montos, mes, género).
+Filtros: mes, grupo (propios / franquicias / todos) y local para los gráficos.
+
+## Cómo funciona
+
+Es una **web app de Google Apps Script** que corre con tu cuenta de Google:
+cada vez que se abre (o se toca *Actualizar*) lee la planilla directamente,
+así que siempre muestra lo último que se cargó. No hay copias de los datos
+en ningún servidor ni en este repositorio.
+
+- Solo lee las pestañas **Ventas Mensuales** y las mensuales (`Septiembre26`, `Agosto26`, …).
+  Cualquier otra pestaña (por ejemplo la de clientes con DNI) no se abre.
+- Permiso pedido: `spreadsheets.readonly` (solo lectura, no puede modificar nada).
+- Acceso: **solo vos** (`"access": "MYSELF"` en `src/appsscript.json`).
+
+```
+src/
+  Code.js           doGet() + getData(): lee la planilla
+  Parser.js         entiende el formato de la planilla (probado con los datos reales)
+  Index.html        estructura de la página
+  Styles.html       estilos (modo claro y oscuro)
+  App.html          KPIs, ranking y gráficos (Chart.js)
+  appsscript.json   manifiesto: zona horaria, permisos, acceso
+.github/workflows/
+  deploy.yml        publica en Apps Script en cada push a main
+dev/
+  dump_xlsx.py      convierte una copia .xlsx a dev/raw.json (no se versiona)
+  build-preview.js  genera dev/index.html para ver el tablero sin desplegar
+```
 
 ## Puesta en marcha (una sola vez)
 
-1. **Creá el repositorio en GitHub** y subí esta carpeta completa (`index.html`,
-   `data/`, `scripts/`, `.github/`).
-2. **Activá GitHub Pages:** Settings → Pages → Source: rama `main`, carpeta `/ (root)`.
-3. **Cargá las credenciales de la API como secrets** (nunca las escribas en el
-   código ni las compartas por chat): Settings → Secrets and variables →
-   Actions → New repository secret:
-   - `EVUP_LOGIN`: usuario de API del ELOS
-   - `EVUP_PASSWORD`: contraseña de ese usuario
-4. **Corré el sync por primera vez a mano:** pestaña Actions → "Sync EVUP data"
-   → "Run workflow". Revisá los logs — es la primera corrida contra la API real
-   y puede necesitar ajustes menores (ver "Notas técnicas" abajo).
-5. Cuando el job termine y haga commit de `data/*.json`, refrescá la página de
-   GitHub Pages: el tablero va a mostrar "Sincronizado el ..." con la fecha real
-   de esa corrida.
+Requisitos: Node.js y la cuenta de Google que tiene acceso a la planilla.
 
-A partir de ahí el workflow corre solo todos los días (cron en UTC, ver el
-comentario en `sync-data.yml` para cambiar el horario).
+1. Activá la API de Apps Script en tu cuenta: <https://script.google.com/home/usersettings> → *Google Apps Script API* → **Activada**.
+2. Instalá las dependencias e iniciá sesión (se abre el navegador para autorizar):
+   ```bash
+   npm install
+   npx clasp login
+   ```
+3. Creá el proyecto de Apps Script vinculado a esta carpeta:
+   ```bash
+   npx clasp create --type webapp --title "Tablero DEFINIT" --rootDir src
+   ```
+   Esto genera `.clasp.json` con el ID del script. **Commitealo**: la publicación
+   automática lo necesita (el ID no es secreto; sin tu cuenta no da acceso a nada).
+   Si `clasp` reescribió `src/appsscript.json`, restauralo con `git checkout src/appsscript.json`.
+4. Subí el código y creá la implementación web (una sola vez):
+   ```bash
+   npm run crear-implementacion
+   ```
+5. Abrí el script con `npx clasp open`, andá a **Implementar → Administrar implementaciones**,
+   copiá la **URL de la aplicación web** y abrila. La primera vez Google pide autorizar
+   el acceso de solo lectura a tus hojas de cálculo.
 
-## Probar el sync localmente (opcional)
+Guardá esa URL en favoritos: es tu tablero.
+
+## Publicación automática desde GitHub
+
+Cada push a `main` que cambie algo en `src/` publica el tablero solo
+(`.github/workflows/deploy.yml`): sube el código a Apps Script y actualiza la
+misma implementación, así **la URL no cambia**. Se puede ver cada corrida en la
+pestaña **Actions** del repo, y lanzarla a mano con *Run workflow*.
+
+Para activarla, cargá dos secrets en GitHub → **Settings → Secrets and variables
+→ Actions → New repository secret**:
+
+| Secret | Qué poner |
+|---|---|
+| `CLASPRC_JSON` | El contenido completo del archivo `.clasprc.json` que dejó `npx clasp login` en tu carpeta de usuario (`C:\Users\<vos>\.clasprc.json`). |
+| `DEPLOYMENT_ID` | El ID de la implementación web. Sale de `npx clasp deployments`: es el que **no** dice `@HEAD` (empieza con `AKfycb…`). |
+
+`CLASPRC_JSON` es una credencial de tu cuenta de Google: pegala solo en el secret
+de GitHub (queda cifrada), nunca en el código ni en un chat. Si alguna vez querés
+revocarla, andá a <https://myaccount.google.com/permissions> y quitá el acceso de *clasp*.
+
+Si la Action falla con un error de autorización, volvé a correr `npx clasp login`
+y actualizá el secret `CLASPRC_JSON` con el archivo nuevo.
+
+### Publicar a mano (sin GitHub)
 
 ```bash
-cd definit-dashboard
-EVUP_LOGIN="usuario" EVUP_PASSWORD="clave" node scripts/sync.mjs
+npm run push
 ```
 
-Requiere Node 18+. Nunca commitees un `.env` ni pegues la contraseña en un
-archivo del repo — pasala solo por variable de entorno en la terminal.
+Con `push` alcanza para la URL de prueba (`/dev`). Para la URL publicada (`/exec`):
 
-## Notas técnicas / qué revisar en la primera corrida real
-
-La documentación pública de la API (`/docs/index.html`) no especifica el
-formato exacto de respuesta de los endpoints `List` (paginación, envoltorio),
-así que `scripts/sync.mjs` fue escrito de forma defensiva (acepta array plano
-o `{items:[...], hasNextPage:...}` con variantes de mayúsculas) pero **no fue
-probado contra la API real** porque no tengo credenciales. Si la primera
-corrida falla o trae datos incompletos, lo más probable es un desajuste en:
-
-- El nombre exacto del campo de paginación (`hasNextPage` vs `HasNextPage` vs
-  ausente) — ver `extractItems()` en `sync.mjs`.
-- El esquema del token de login (string plano vs `{ "token": "..." }`).
-- Nombres de campo con mayúscula/minúscula distinta a la documentada.
-
-Revisar los logs del Action (o de la corrida local) contra la definición real
-para ajustar `sync.mjs` en consecuencia.
-
-## Estructura
-
+```bash
+npx clasp deploy --deploymentId <DEPLOYMENT_ID>
 ```
-index.html                     tablero (fetch a ./data/*.json en tiempo de carga)
-data/dicts.json                catálogos (ítems, vendedoras, estados, meses, etc.)
-data/rows.json                 líneas de ítem anonimizadas (sin PII de clientes)
-data/meta.json                 fecha de la última sincronización y totales
-scripts/sync.mjs               script Node que llama a la API EVUP
-.github/workflows/sync-data.yml   cron diario + botón de ejecución manual
+
+## Vista previa local (sin desplegar)
+
+Con una copia `.xlsx` de la planilla (Archivo → Descargar → Microsoft Excel):
+
+```bash
+python dev/dump_xlsx.py ruta/a/Facturacion.xlsx
+npm run preview
 ```
+
+y abrí `dev/index.html` en el navegador. `raw.json` e `index.html` quedan fuera de git.
+
+## Cómo se calcula cada cosa
+
+| Indicador | Cálculo |
+|---|---|
+| Venta | Columna *Venta* de **Ventas Mensuales** (suma de las ventas diarias del mes) |
+| % Meta / % Súper | Venta ÷ Meta, Venta ÷ Súper |
+| Días transcurridos | Último día del mes con ventas cargadas (sin pasar la fecha de A1) |
+| Proyección de cierre | Venta ÷ días transcurridos × días del mes (días corridos) |
+| Necesario/día p/ Súper | (Súper − Venta) ÷ días restantes del mes |
+| Participación | Venta del local ÷ venta del grupo |
+| Mapa semáforo | Venta ÷ Súper; en el mes en curso, proyección ÷ Súper. Verde ≥ 100%, amarillo 97–100%, naranja 90–97%, rojo < 90% |
+
+Todos los importes son nominales (sin ajustar por inflación).
+
+## Si cambia la planilla
+
+El parser busca los datos por su contenido, no por celdas fijas: encabezados
+`Local`, bloque `FRANQUICIAS`, fila `Días remanentes`, fechas del mes en la fila 1,
+y en las pestañas mensuales cada local con su fila `Ventas` debajo. Agregar
+locales o meses nuevos no requiere tocar el código. Si se renombra la pestaña
+**Ventas Mensuales** o cambia el ID del archivo, ajustá las constantes al
+principio de `src/Code.js`.
