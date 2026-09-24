@@ -59,6 +59,39 @@ function claveLocal(nombre) {
     .replace(/\s+/g, ' ');
 }
 
+/**
+ * Convierte la GridData de la API de Sheets en una matriz como la de
+ * Range.getValues(): números, textos y fechas (las celdas con formato de fecha
+ * llegan como número de serie y se devuelven como 'YYYY-MM-DD').
+ */
+function grillaAValores(grilla) {
+  if (!grilla || !grilla.rowData) return [];
+  var desdeFila = grilla.startRow || 0, desdeCol = grilla.startColumn || 0;
+  var valores = [];
+  for (var i = 0; i < desdeFila; i++) valores.push([]);
+  grilla.rowData.forEach(function (fila) {
+    var salida = [];
+    for (var j = 0; j < desdeCol; j++) salida.push('');
+    (fila.values || []).forEach(function (celda) {
+      var ev = celda.effectiveValue || {};
+      var tipo = celda.effectiveFormat && celda.effectiveFormat.numberFormat && celda.effectiveFormat.numberFormat.type;
+      if (ev.numberValue != null) {
+        salida.push(tipo === 'DATE' || tipo === 'DATE_TIME' ? serialAFecha(ev.numberValue) : ev.numberValue);
+      } else if (ev.stringValue != null) salida.push(ev.stringValue);
+      else if (ev.boolValue != null) salida.push(ev.boolValue);
+      else salida.push('');
+    });
+    valores.push(salida);
+  });
+  return valores;
+}
+
+/** Número de serie de Sheets (días desde 30/12/1899) -> 'YYYY-MM-DD'. */
+function serialAFecha(serial) {
+  var d = new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000);
+  return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+}
+
 /** Lee la pestaña "Ventas Mensuales": un bloque por mes con locales, metas y súper. */
 function parsearResumen(valores) {
   var fila0 = valores[0] || [];
@@ -171,6 +204,7 @@ function construirModelo(resumen, pestanasMes) {
 if (typeof module !== 'undefined') {
   module.exports = {
     construirModelo: construirModelo, parsearResumen: parsearResumen,
-    parsearMes: parsearMes, esPestanaMensual: esPestanaMensual, claveLocal: claveLocal
+    parsearMes: parsearMes, esPestanaMensual: esPestanaMensual, claveLocal: claveLocal,
+    grillaAValores: grillaAValores
   };
 }

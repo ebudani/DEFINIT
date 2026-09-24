@@ -23,20 +23,30 @@ function include(nombre) {
 /**
  * Lee la planilla y devuelve el modelo como JSON (google.script.run no admite
  * objetos Date). Solo se leen "Ventas Mensuales" y las pestañas mensuales; el
- * resto (por ejemplo la de clientes con DNI) nunca se abre.
+ * resto (por ejemplo la de clientes con DNI) nunca se pide.
+ *
+ * Usa la API de Sheets (servicio avanzado "Sheets") en lugar de SpreadsheetApp
+ * porque SpreadsheetApp.openById exige el permiso de edición; la API funciona
+ * con spreadsheets.readonly, así el tablero no puede modificar la planilla.
  */
 function getData() {
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var hojaResumen = ss.getSheetByName(PESTANA_RESUMEN);
-  if (!hojaResumen) throw new Error('No se encontró la pestaña "' + PESTANA_RESUMEN + '".');
+  var info = Sheets.Spreadsheets.get(SPREADSHEET_ID, { fields: 'properties/title,sheets/properties/title' });
+  var nombres = info.sheets.map(function (s) { return s.properties.title; });
+  if (nombres.indexOf(PESTANA_RESUMEN) < 0) throw new Error('No se encontró la pestaña "' + PESTANA_RESUMEN + '".');
+  var aLeer = nombres.filter(function (n) { return n === PESTANA_RESUMEN || esPestanaMensual(n); });
 
-  var pestanasMes = {};
-  ss.getSheets().forEach(function (hoja) {
-    var nombre = hoja.getName();
-    if (esPestanaMensual(nombre)) pestanasMes[nombre] = hoja.getDataRange().getValues();
+  var libro = Sheets.Spreadsheets.get(SPREADSHEET_ID, {
+    ranges: aLeer.map(function (n) { return "'" + n.replace(/'/g, "''") + "'"; }),
+    includeGridData: true,
+    fields: 'sheets(properties/title,data(startRow,startColumn,rowData/values(effectiveValue,effectiveFormat/numberFormat/type)))'
   });
 
-  var modelo = construirModelo(hojaResumen.getDataRange().getValues(), pestanasMes);
-  modelo.planilla = ss.getName();
+  var hojas = {};
+  libro.sheets.forEach(function (s) { hojas[s.properties.title] = grillaAValores((s.data || [])[0]); });
+
+  var resumen = hojas[PESTANA_RESUMEN];
+  delete hojas[PESTANA_RESUMEN];
+  var modelo = construirModelo(resumen, hojas);
+  modelo.planilla = info.properties.title;
   return JSON.stringify(modelo);
 }
