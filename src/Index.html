@@ -97,9 +97,18 @@
     </section>
 
     <section class="panel" id="panel-mapa" hidden>
-      <div class="panel-head">
-        <h2>Cumplimiento de Súper por local y mes</h2>
-        <p class="nota">Venta ÷ Súper (la planilla da el mes por cumplido ✅ al llegar al Súper). En el mes en curso se muestra el cumplimiento <strong>proyectado</strong> al cierre.</p>
+      <div class="panel-head panel-head-fila">
+        <div>
+          <h2 id="titulo-mapa">Cumplimiento de Súper por local y mes</h2>
+          <p class="nota" id="nota-mapa"></p>
+        </div>
+        <div class="campo">
+          <span id="lbl-vs">Comparar contra</span>
+          <div class="segmentado" role="radiogroup" aria-labelledby="lbl-vs" id="f-vs">
+            <button type="button" role="radio" data-v="super" aria-checked="true">Súper</button>
+            <button type="button" role="radio" data-v="meta" aria-checked="false">Meta</button>
+          </div>
+        </div>
       </div>
       <div class="escala" id="escala-mapa"></div>
       <div class="tabla-scroll">

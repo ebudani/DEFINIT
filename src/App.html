@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var estado = { datos: null, mes: null, grupo: 'propio', local: '', orden: { col: 'venta', dir: -1 } };
+  var estado = { datos: null, mes: null, grupo: 'propio', local: '', orden: { col: 'venta', dir: -1 }, vsMapa: 'super' };
   var graficos = {};
   if (window.Chart) Chart.defaults.font.family = 'Montserrat, system-ui, -apple-system, "Segoe UI", sans-serif';
   var $ = function (id) { return document.getElementById(id); };
@@ -338,6 +338,11 @@
 
   function renderMapa() {
     var d = estado.datos;
+    var vsSuper = estado.vsMapa === 'super';
+    var objetivo = vsSuper ? 'Súper' : 'Meta';
+    $('titulo-mapa').textContent = 'Cumplimiento de ' + objetivo + ' por local y mes';
+    $('nota-mapa').innerHTML = 'Venta ÷ ' + objetivo + (vsSuper ? ' (la planilla da el mes por cumplido ✅ al llegar al Súper)' : '') +
+      '. En el mes en curso se muestra el cumplimiento <strong>proyectado</strong> al cierre.';
     var calc = d.meses.map(function (m) { return calcularMes(m.mes); });
     var ultimo = calc[calc.length - 1];
     var orden = {};
@@ -353,12 +358,14 @@
       html += '<tr><td class="izq">' + esc(locales[k]) + '</td>';
       calc.forEach(function (c) {
         var f = c.filas.filter(function (x) { return x.clave === k; })[0];
-        var v = f && f.super ? (c.abierto ? f.proy / f.super : f.pSuper) : null;
+        var base = f ? (vsSuper ? f.super : f.meta) : 0;
+        var v = base ? (c.abierto ? f.proy : f.venta) / base : null;
         if (v == null) { html += '<td class="celda">–</td>'; return; }
         var col = colorCelda(v);
         html += '<td class="celda" style="background:' + col.fondo + ';color:' + col.texto + '" data-tip="' +
-          esc('<strong>' + locales[k] + ' · ' + nombreMes(c.mes) + '</strong>Venta ' + millones(f.venta) + ' · Súper ' + millones(f.super) +
-            (c.abierto ? '<br>Proyectado ' + millones(f.proy) + ' (' + pct(v) + ' del Súper)' : '<br>' + pct(v) + ' del Súper · ' + pct(f.pMeta) + ' de la Meta')) +
+          esc('<strong>' + locales[k] + ' · ' + nombreMes(c.mes) + '</strong>Venta ' + millones(f.venta) + ' · ' + objetivo + ' ' + millones(base) +
+            (c.abierto ? '<br>Proyectado ' + millones(f.proy) + ' (' + pct(v) + ' de' + (vsSuper ? 'l Súper' : ' la Meta') + ')'
+              : '<br>' + pct(f.pMeta) + ' de la Meta · ' + pct(f.pSuper) + ' del Súper')) +
           '">' + pct(v).replace(',0%', '%') + '</td>';
       });
       html += '</tr>';
@@ -389,6 +396,12 @@
       estado.grupo = b.dataset.v;
       Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.setAttribute('aria-checked', String(x === b)); });
       llenarLocales(); render();
+    });
+    $('f-vs').addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      estado.vsMapa = b.dataset.v;
+      Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.setAttribute('aria-checked', String(x === b)); });
+      renderMapa();
     });
     $('tabla-ranking').addEventListener('click', ordenar);
     $('tabla-ranking').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ordenar(e); } });
