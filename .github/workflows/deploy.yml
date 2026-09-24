@@ -63,7 +63,12 @@ jobs:
           # Un espacio o salto de línea al pegar el secret invalida el ID.
           id="$(printf '%s' "$DEPLOYMENT_ID" | tr -d '[:space:]')"
           echo "DEPLOYMENT_ID: ${#id} caracteres (se esperan ~72, empieza con AKfycb: $([ "${id:0:6}" = AKfycb ] && echo sí || echo no))"
-          clasp deploy --deploymentId "$id" --description "GitHub ${GITHUB_SHA::7}"
+          if ! clasp deploy --deploymentId "$id" --description "GitHub ${GITHUB_SHA::7}" > salida.txt 2>&1; then
+            cat salida.txt
+            echo "::error::clasp deploy falló: $(tr '\n' ' ' < salida.txt | tail -c 400)"
+            exit 1
+          fi
+          cat salida.txt
 
       - name: Borrar credenciales
         if: always()
