@@ -59,7 +59,11 @@ jobs:
       - name: Actualizar la implementación web
         env:
           DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
-        run: clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}"
+        run: |
+          # Un espacio o salto de línea al pegar el secret invalida el ID.
+          id="$(printf '%s' "$DEPLOYMENT_ID" | tr -d '[:space:]')"
+          echo "DEPLOYMENT_ID: ${#id} caracteres (se esperan ~72, empieza con AKfycb: $([ "${id:0:6}" = AKfycb ] && echo sí || echo no))"
+          clasp deploy --deploymentId "$id" --description "GitHub ${GITHUB_SHA::7}"
 
       - name: Borrar credenciales
         if: always()
