@@ -35,14 +35,19 @@ function getData() {
   if (nombres.indexOf(PESTANA_RESUMEN) < 0) throw new Error('No se encontró la pestaña "' + PESTANA_RESUMEN + '".');
   var aLeer = nombres.filter(function (n) { return n === PESTANA_RESUMEN || esPestanaMensual(n); });
 
-  var libro = Sheets.Spreadsheets.get(SPREADSHEET_ID, {
+  // Solo valores (sin formatos): es una lectura liviana. Las fechas llegan como
+  // número de serie y marcarFechas() las reconoce por su posición en la hoja.
+  var lectura = Sheets.Spreadsheets.Values.batchGet(SPREADSHEET_ID, {
     ranges: aLeer.map(function (n) { return "'" + n.replace(/'/g, "''") + "'"; }),
-    includeGridData: true,
-    fields: 'sheets(properties/title,data(startRow,startColumn,rowData/values(effectiveValue,effectiveFormat/numberFormat/type)))'
+    valueRenderOption: 'UNFORMATTED_VALUE',
+    dateTimeRenderOption: 'SERIAL_NUMBER'
   });
 
   var hojas = {};
-  libro.sheets.forEach(function (s) { hojas[s.properties.title] = grillaAValores((s.data || [])[0]); });
+  lectura.valueRanges.forEach(function (vr, i) {
+    var nombre = aLeer[i];
+    hojas[nombre] = marcarFechas(vr.values || [], nombre === PESTANA_RESUMEN);
+  });
 
   var resumen = hojas[PESTANA_RESUMEN];
   delete hojas[PESTANA_RESUMEN];

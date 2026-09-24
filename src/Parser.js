@@ -59,31 +59,27 @@ function claveLocal(nombre) {
     .replace(/\s+/g, ' ');
 }
 
+// Números de serie entre 2000 y 2100: en las filas de fechas, eso es una fecha.
+var SERIAL_MIN = 36526, SERIAL_MAX = 73051;
+
 /**
- * Convierte la GridData de la API de Sheets en una matriz como la de
- * Range.getValues(): números, textos y fechas (las celdas con formato de fecha
- * llegan como número de serie y se devuelven como 'YYYY-MM-DD').
+ * La API de Sheets (valores sin formato) devuelve las fechas como número de
+ * serie. Se convierten a 'YYYY-MM-DD' solo donde la planilla tiene fechas:
+ *  - resumen: la fila 1 (fecha de actualización y fecha de cada mes);
+ *  - pestañas mensuales: la fila de fechas que está arriba de cada fila "Ventas".
+ * Así un importe nunca se confunde con una fecha.
  */
-function grillaAValores(grilla) {
-  if (!grilla || !grilla.rowData) return [];
-  var desdeFila = grilla.startRow || 0, desdeCol = grilla.startColumn || 0;
-  var valores = [];
-  for (var i = 0; i < desdeFila; i++) valores.push([]);
-  grilla.rowData.forEach(function (fila) {
-    var salida = [];
-    for (var j = 0; j < desdeCol; j++) salida.push('');
-    (fila.values || []).forEach(function (celda) {
-      var ev = celda.effectiveValue || {};
-      var tipo = celda.effectiveFormat && celda.effectiveFormat.numberFormat && celda.effectiveFormat.numberFormat.type;
-      if (ev.numberValue != null) {
-        salida.push(tipo === 'DATE' || tipo === 'DATE_TIME' ? serialAFecha(ev.numberValue) : ev.numberValue);
-      } else if (ev.stringValue != null) salida.push(ev.stringValue);
-      else if (ev.boolValue != null) salida.push(ev.boolValue);
-      else salida.push('');
+function marcarFechas(valores, esResumen) {
+  var aFecha = function (fila) {
+    return (fila || []).map(function (v) {
+      return typeof v === 'number' && v >= SERIAL_MIN && v <= SERIAL_MAX ? serialAFecha(v) : v;
     });
-    valores.push(salida);
+  };
+  return valores.map(function (fila, r) {
+    if (esResumen) return r === 0 ? aFecha(fila) : fila;
+    var siguiente = valores[r + 1];
+    return siguiente && /^ventas/i.test(texto(siguiente[0])) ? aFecha(fila) : fila;
   });
-  return valores;
 }
 
 /** Número de serie de Sheets (días desde 30/12/1899) -> 'YYYY-MM-DD'. */
@@ -205,6 +201,6 @@ if (typeof module !== 'undefined') {
   module.exports = {
     construirModelo: construirModelo, parsearResumen: parsearResumen,
     parsearMes: parsearMes, esPestanaMensual: esPestanaMensual, claveLocal: claveLocal,
-    grillaAValores: grillaAValores
+    marcarFechas: marcarFechas
   };
 }
