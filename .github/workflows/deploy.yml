@@ -1,9 +1,9 @@
 # Publica el tablero en Google Apps Script en cada push a main que toque src/.
 #
-# Necesita (Settings → Secrets and variables → Actions):
-#   CLASPRC_JSON   contenido de ~/.clasprc.json después de `npx clasp login`
-#   DEPLOYMENT_ID  ID de la implementación web (npx clasp deployments)
-# y el archivo .clasp.json commiteado en la raíz (lo crea `npx clasp create`).
+# Necesita el secret CLASPRC_JSON (Settings → Secrets and variables → Actions):
+# el contenido de ~/.clasprc.json después de `npx clasp login`.
+# Además usa .clasp.json (ID del script) y DEPLOYMENT_ID (abajo), que no son
+# secretos: el ID de implementación es parte de la URL pública del tablero.
 #
 # Actualiza siempre la MISMA implementación, así la URL del tablero no cambia.
 name: Publicar tablero
@@ -16,6 +16,10 @@ on:
       - '.clasp.json'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
+
+env:
+  # ID de la implementación web (npx clasp deployments, el que no dice @HEAD).
+  DEPLOYMENT_ID: AKfycbwadhCyR2cirZ-wKxHdEAArIu2xZPN7maaCrI5kQi64YLSG_fgDNEnw6XSe942mSBjYVA
 
 concurrency:
   group: publicar-tablero
@@ -34,19 +38,17 @@ jobs:
       - name: Verificar configuración
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
-          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
         run: |
           falta=0
           [ -f .clasp.json ] || { echo "::error::Falta .clasp.json en el repo (ver README, paso 3)."; falta=1; }
           [ -n "$CLASPRC_JSON" ] || { echo "::error::Falta el secret CLASPRC_JSON (ver README)."; falta=1; }
-          [ -n "$DEPLOYMENT_ID" ] || { echo "::error::Falta el secret DEPLOYMENT_ID (ver README)."; falta=1; }
           exit $falta
 
       - name: Probar el parser
         run: node -e "require('./src/Parser.js')"
 
       - name: Instalar clasp
-        run: npm install -g @google/clasp@2.4.2
+        run: npm install -g @google/clasp@2.5.0
 
       - name: Subir código a Apps Script
         env:
@@ -57,13 +59,8 @@ jobs:
           clasp push --force
 
       - name: Actualizar la implementación web
-        env:
-          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
         run: |
-          # Un espacio o salto de línea al pegar el secret invalida el ID.
-          id="$(printf '%s' "$DEPLOYMENT_ID" | tr -d '[:space:]')"
-          echo "DEPLOYMENT_ID: ${#id} caracteres (se esperan ~72, empieza con AKfycb: $([ "${id:0:6}" = AKfycb ] && echo sí || echo no))"
-          if ! clasp deploy --deploymentId "$id" --description "GitHub ${GITHUB_SHA::7}" > salida.txt 2>&1; then
+          if ! clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}" > salida.txt 2>&1; then
             cat salida.txt
             echo "::error::clasp deploy falló: $(tr '\n' ' ' < salida.txt | tail -c 400)"
             exit 1

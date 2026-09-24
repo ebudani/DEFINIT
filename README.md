@@ -71,13 +71,16 @@ Cada push a `main` que cambie algo en `src/` publica el tablero solo
 misma implementación, así **la URL no cambia**. Se puede ver cada corrida en la
 pestaña **Actions** del repo, y lanzarla a mano con *Run workflow*.
 
-Para activarla, cargá dos secrets en GitHub → **Settings → Secrets and variables
+Para activarla, cargá un secret en GitHub → **Settings → Secrets and variables
 → Actions → New repository secret**:
 
 | Secret | Qué poner |
 |---|---|
 | `CLASPRC_JSON` | El contenido completo del archivo `.clasprc.json` que dejó `npx clasp login` en tu carpeta de usuario (`C:\Users\<vos>\.clasprc.json`). |
-| `DEPLOYMENT_ID` | El ID de la implementación web. Sale de `npx clasp deployments`: es el que **no** dice `@HEAD` (empieza con `AKfycb…`). |
+
+El ID de la implementación web (`DEPLOYMENT_ID`) está escrito en el workflow: no
+es secreto, es parte de la URL del tablero. Si alguna vez creás otra
+implementación, actualizalo ahí (sale de `npx clasp deployments`, el que no dice `@HEAD`).
 
 `CLASPRC_JSON` es una credencial de tu cuenta de Google: pegala solo en el secret
 de GitHub (queda cifrada), nunca en el código ni en un chat. Si alguna vez querés

@@ -9,6 +9,6 @@
     "preview": "node dev/build-preview.js"
   },
   "devDependencies": {
-    "@google/clasp": "^2.4.2"
+    "@google/clasp": "^2.5.0"
   }
 }
