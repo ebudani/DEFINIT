@@ -69,13 +69,13 @@
   }
 
   function estadoLocal(f, abierto) {
-    if (f.meta && f.venta >= f.super && f.super) return { txt: 'Súper', icono: '★', color: css('--good') };
-    if (f.meta && f.venta >= f.meta) return { txt: 'Meta', icono: '✓', color: css('--good') };
-    if (!f.meta) return { txt: 'Sin meta', icono: '·', color: css('--muted') };
+    if (f.meta && f.venta >= f.super && f.super) return { txt: 'Súper', icono: '★', color: css('--good'), fila: 'fila-ok' };
+    if (f.meta && f.venta >= f.meta) return { txt: 'Meta', icono: '✓', color: css('--good'), fila: 'fila-ok' };
+    if (!f.meta) return { txt: 'Sin meta', icono: '·', color: css('--muted'), fila: '' };
     if (abierto) return f.proy >= f.meta
-      ? { txt: 'En camino', icono: '↗', color: css('--warning') }
-      : { txt: 'En riesgo', icono: '!', color: css('--critical') };
-    return { txt: 'Bajo meta', icono: '✕', color: css('--critical') };
+      ? { txt: 'En camino', icono: '↗', color: css('--warning'), fila: 'fila-camino' }
+      : { txt: 'En riesgo', icono: '!', color: css('--critical'), fila: 'fila-riesgo' };
+    return { txt: 'Bajo meta', icono: '✕', color: css('--critical'), fila: 'fila-riesgo' };
   }
 
   // ---------- Render ----------
@@ -173,7 +173,7 @@
         return '<th' + (col.izq ? ' class="izq"' : '') + (col.orden ? ' data-orden="' + col.id + '" tabindex="0"' : '') +
           (sort ? ' aria-sort="' + sort + '"' : '') + ' scope="col">' + col.th + '</th>';
       }).join('') + '</tr></thead>' +
-      '<tbody>' + filas.map(function (f) { return '<tr>' + cols.map(function (col) { return celda[col.id](f); }).join('') + '</tr>'; }).join('') + '</tbody>' +
+      '<tbody>' + filas.map(function (f) { return '<tr class="' + estadoLocal(f, c.abierto).fila + '">' + cols.map(function (col) { return celda[col.id](f); }).join('') + '</tr>'; }).join('') + '</tbody>' +
       '<tfoot><tr>' + cols.map(function (col) { return '<td' + (col.izq ? ' class="izq"' : '') + '>' + pie[col.id] + '</td>'; }).join('') + '</tr></tfoot>';
 
     $('nota-ranking').textContent = c.abierto
