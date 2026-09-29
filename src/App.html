@@ -371,7 +371,7 @@
       html += '</tr>';
     });
     $('tabla-mapa').innerHTML = html + '</tbody>';
-    $('escala-mapa').innerHTML = ESCALA.map(function (e) {
+    $('escala-mapa').innerHTML = ESCALA.slice().reverse().map(function (e) {
       return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px"><i style="background:' + colorCelda(e.hasta === Infinity ? 1.3 : e.hasta - 0.001).fondo + '"></i>' + e.lbl + '</span>';
     }).join('');
     $('panel-mapa').hidden = false;
