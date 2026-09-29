@@ -1,5 +1,8 @@
 # DEFINIT: Tablero Mensual de Ventas
 
+**👉 Abrir el tablero:** https://script.google.com/macros/s/AKfycbwadhCyR2cirZ-wKxHdEAArIu2xZPN7maaCrI5kQi64YLSG_fgDNEnw6XSe942mSBjYVA/exec
+(solo entra la cuenta de Google que lo publicó)
+
 Tablero web que lee **Facturación 2026** (Google Sheets) en vivo y muestra:
 
 - Venta por local, por día y por mes
