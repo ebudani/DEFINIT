@@ -178,8 +178,7 @@
 
     $('nota-ranking').textContent = c.abierto
       ? 'Proyección = venta a la fecha ÷ ' + c.transcurridos + ' días × ' + c.nDias + ' días. Necesario/día = lo que falta para el Súper ÷ ' + c.restantes + ' días restantes. La barra marca el 100% de la Meta.'
-      : 'Mes cerrado. La barra de % Meta marca el 100%.';
-    $('panel-ranking').hidden = false;
+      : 'Mes cerrado. La barra de % Meta marca el 100%.';    $('panel-ranking').hidden = false;
   }
 
   // ---------- Gráficos ----------
@@ -350,6 +349,8 @@
     var locales = {};
     calc.forEach(function (c) { c.filas.forEach(function (f) { if (!locales[f.clave]) locales[f.clave] = f.nombre; }); });
     var claves = Object.keys(locales).sort(function (a, b) { return (orden[b] || 0) - (orden[a] || 0); });
+    // Mes más reciente pegado a la columna Local, y hacia la derecha los anteriores.
+    calc = calc.slice().reverse();
 
     var html = '<thead><tr><th class="izq" scope="col">Local</th>' + calc.map(function (c) {
       return '<th scope="col"' + (c.abierto ? ' class="en-curso"' : '') + '>' + nombreMes(c.mes, true) + (c.abierto ? ' · proy.' : '') + '</th>';

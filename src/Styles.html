@@ -161,6 +161,15 @@
   .ranking th[aria-sort="ascending"]::after { content: " ↑"; }
   .ranking tfoot td { font-weight: 650; border-top: 1px solid var(--axis); border-bottom: 0; background: #ececec; }
   .pos { color: var(--muted); width: 28px; }
+
+  /* Columnas # y Local fijas al desplazar la tabla hacia la derecha (celular).
+     Las celdas fijas heredan el fondo de su fila para respetar el sombreado. */
+  .ranking tbody tr { background: var(--surface); }
+  .ranking thead th { background: var(--surface); }
+  .ranking th:nth-child(1), .ranking td:nth-child(1) { position: sticky; left: 0; z-index: 1; width: 44px; min-width: 44px; max-width: 44px; }
+  .ranking th:nth-child(2), .ranking td:nth-child(2) { position: sticky; left: 44px; z-index: 1; box-shadow: 1px 0 0 var(--grid); }
+  .ranking tbody td:nth-child(1), .ranking tbody td:nth-child(2) { background: inherit; }
+  .mapa th:first-child, .mapa td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--grid); }
   .barra-celda { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
   .barra { width: 80px; height: 6px; border-radius: 3px; background: var(--track); position: relative; flex: none; }
   .barra > i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--series-1); }
