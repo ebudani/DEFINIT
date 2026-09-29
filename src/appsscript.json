@@ -15,7 +15,7 @@
     "https://www.googleapis.com/auth/spreadsheets.readonly"
   ],
   "webapp": {
-    "executeAs": "USER_DEPLOYING",
-    "access": "MYSELF"
+    "executeAs": "USER_ACCESSING",
+    "access": "ANYONE"
   }
 }

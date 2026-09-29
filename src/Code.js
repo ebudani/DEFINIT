@@ -1,8 +1,9 @@
 /**
  * Tablero de ventas DEFINIT — web app de Google Apps Script.
  *
- * Corre con la cuenta de quien lo despliega y lee "Facturación 2026" en vivo
- * cada vez que se abre o se toca "Actualizar": no hay copias de los datos.
+ * Corre con la cuenta de QUIEN LO ABRE y lee "Facturación 2026" en vivo cada
+ * vez que se abre o se toca "Actualizar": no hay copias de los datos. Así solo
+ * ve datos quien tiene acceso a la planilla en Drive.
  */
 
 // ID de "Facturación 2026" (docs.google.com/spreadsheets/d/<ID>/edit).
@@ -30,7 +31,16 @@ function include(nombre) {
  * con spreadsheets.readonly, así el tablero no puede modificar la planilla.
  */
 function getData() {
-  var info = Sheets.Spreadsheets.get(SPREADSHEET_ID, { fields: 'properties/title,sheets/properties/title' });
+  var info;
+  try {
+    info = Sheets.Spreadsheets.get(SPREADSHEET_ID, { fields: 'properties/title,sheets/properties/title' });
+  } catch (e) {
+    if (/permission|permiso|403|404|not found|no se encontr/i.test(String(e && e.message))) {
+      throw new Error('tu cuenta de Google no tiene acceso a "Facturación 2026". ' +
+        'Pedile acceso a quien administra la planilla, o entrá con la cuenta que sí lo tiene.');
+    }
+    throw e;
+  }
   var nombres = info.sheets.map(function (s) { return s.properties.title; });
   if (nombres.indexOf(PESTANA_RESUMEN) < 0) throw new Error('No se encontró la pestaña "' + PESTANA_RESUMEN + '".');
   var aLeer = nombres.filter(function (n) { return n === PESTANA_RESUMEN || esPestanaMensual(n); });

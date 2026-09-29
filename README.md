@@ -1,7 +1,7 @@
 # DEFINIT: Tablero Mensual de Ventas
 
 **👉 Abrir el tablero:** https://script.google.com/macros/s/AKfycbwadhCyR2cirZ-wKxHdEAArIu2xZPN7maaCrI5kQi64YLSG_fgDNEnw6XSe942mSBjYVA/exec
-(solo entra la cuenta de Google que lo publicó)
+(ve los datos quien tenga acceso a la planilla "Facturación 2026")
 
 Tablero web que lee **Facturación 2026** (Google Sheets) en vivo y muestra:
 
@@ -15,15 +15,20 @@ Filtros: mes, grupo (propios / franquicias / todos) y local para los gráficos.
 
 ## Cómo funciona
 
-Es una **web app de Google Apps Script** que corre con tu cuenta de Google:
-cada vez que se abre (o se toca *Actualizar*) lee la planilla directamente,
+Es una **web app de Google Apps Script** que corre con la cuenta de Google de
+quien la abre: cada vez que se abre (o se toca *Actualizar*) lee la planilla directamente,
 así que siempre muestra lo último que se cargó. No hay copias de los datos
 en ningún servidor ni en este repositorio.
 
 - Solo lee las pestañas **Ventas Mensuales** y las mensuales (`Septiembre26`, `Agosto26`, …).
   Cualquier otra pestaña (por ejemplo la de clientes con DNI) no se abre.
 - Permiso pedido: `spreadsheets.readonly` (solo lectura, no puede modificar nada).
-- Acceso: **solo vos** (`"access": "MYSELF"` en `src/appsscript.json`).
+- Acceso: **quien tenga acceso a la planilla en Drive** (`"executeAs": "USER_ACCESSING"`,
+  `"access": "ANYONE"` en `src/appsscript.json`). Cualquiera con el link puede abrir la
+  página, pero los datos se leen con los permisos de quien la abre: sin acceso a
+  "Facturación 2026" no ve nada. Para dar o quitar acceso, se comparte o se deja de
+  compartir la planilla. Cada persona autoriza el tablero la primera vez
+  (permiso de solo lectura de hojas de cálculo).
 
 ```
 src/
