@@ -1,6 +1,7 @@
 # DEFINIT: Tablero Mensual de Ventas
 
-**👉 Abrir el tablero:** https://script.google.com/macros/s/AKfycbwadhCyR2cirZ-wKxHdEAArIu2xZPN7maaCrI5kQi64YLSG_fgDNEnw6XSe942mSBjYVA/exec
+**👉 Abrir el tablero:** https://ebudani.github.io/DEFINIT/
+(lleva a https://script.google.com/macros/s/AKfycbwadhCyR2cirZ-wKxHdEAArIu2xZPN7maaCrI5kQi64YLSG_fgDNEnw6XSe942mSBjYVA/exec)
 (ve los datos quien tenga acceso a la planilla "Facturación 2026")
 
 Tablero web que lee **Facturación 2026** (Google Sheets) en vivo y muestra:
