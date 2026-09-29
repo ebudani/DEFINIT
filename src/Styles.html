@@ -150,11 +150,9 @@
   th:first-child, td:first-child, th.izq, td.izq { text-align: left; }
   .ranking td { border-bottom: 1px solid var(--grid); }
   .ranking tbody tr:hover { background: var(--page); }
-  /* Fila sombreada según el estado: verde agua = en Meta/Súper, amarillo = en camino, rojo = en riesgo */
-  .ranking tbody tr.fila-ok { background: #dcf5ee; }
+  /* Fila sombreada según el estado: amarillo = en camino, rojo = en riesgo (Meta/Súper sin sombrear) */
   .ranking tbody tr.fila-camino { background: #fff3c4; }
   .ranking tbody tr.fila-riesgo { background: #fde0de; }
-  .ranking tbody tr.fila-ok:hover { background: #c9eee2; }
   .ranking tbody tr.fila-camino:hover { background: #ffeca6; }
   .ranking tbody tr.fila-riesgo:hover { background: #fbcdc9; }
   .ranking th[data-orden] { cursor: pointer; user-select: none; }

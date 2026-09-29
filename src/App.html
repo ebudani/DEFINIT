@@ -69,8 +69,8 @@
   }
 
   function estadoLocal(f, abierto) {
-    if (f.meta && f.venta >= f.super && f.super) return { txt: 'Súper', icono: '★', color: css('--good'), fila: 'fila-ok' };
-    if (f.meta && f.venta >= f.meta) return { txt: 'Meta', icono: '✓', color: css('--good'), fila: 'fila-ok' };
+    if (f.meta && f.venta >= f.super && f.super) return { txt: 'Súper', icono: '★', color: css('--good'), fila: '' };
+    if (f.meta && f.venta >= f.meta) return { txt: 'Meta', icono: '✓', color: css('--good'), fila: '' };
     if (!f.meta) return { txt: 'Sin meta', icono: '·', color: css('--muted'), fila: '' };
     if (abierto) return f.proy >= f.meta
       ? { txt: 'En camino', icono: '↗', color: css('--warning'), fila: 'fila-camino' }
