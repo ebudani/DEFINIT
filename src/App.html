@@ -448,7 +448,8 @@
           return '<option value="' + m + '"' + (m === estado.mes ? ' selected' : '') + '>' + nombreMes(m).replace(/^./, function (x) { return x.toUpperCase(); }) + '</option>';
         }).join('');
         var act = d.actualizado ? new Date(d.actualizado + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : 's/d';
-        $('fuente').textContent = (d.planilla || 'Facturación 2026') + ' · datos al ' + act + ' · leído ' +
+        $('fuente').textContent = (d.planilla || 'Facturación 2026') + ' · datos al ' + act +
+          (d.actualizadoInferido ? ' (último día con ventas; la celda A1 de Ventas Mensuales está vacía)' : '') + ' · leído ' +
           new Date(d.generado).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' h';
         $('estado').hidden = true;
         $('graficos-mes').hidden = false;

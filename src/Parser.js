@@ -194,6 +194,23 @@ function construirModelo(resumen, pestanasMes) {
 
   modelo.diario = diario;
   modelo.generado = new Date().toISOString();
+
+  // Si A1 de "Ventas Mensuales" está vacía o no es una fecha, se usa el último
+  // día con ventas cargadas (sin pasar de hoy). Sin esta fecha el tablero no
+  // sabría qué mes está en curso.
+  if (!modelo.actualizado) {
+    var hoy = aFechaISO(new Date());
+    var ultimo = null;
+    Object.keys(diario).forEach(function (mes) {
+      Object.keys(diario[mes]).forEach(function (k) {
+        diario[mes][k].forEach(function (p) {
+          if (p[1] !== 0 && p[0] <= hoy && (!ultimo || p[0] > ultimo)) ultimo = p[0];
+        });
+      });
+    });
+    modelo.actualizado = ultimo;
+    modelo.actualizadoInferido = true;
+  }
   return modelo;
 }
 
