@@ -85,6 +85,7 @@
     renderRanking(c);
     renderRitmo(c);
     renderDiaria(c);
+    renderSemanal();
     renderEvolucion();
     renderMapa();
   }
@@ -280,6 +281,110 @@
     var conVenta = datos.filter(function (v) { return v; });
     var prom = conVenta.length ? conVenta.reduce(function (x, y) { return x + y; }, 0) / conVenta.length : 0;
     $('nota-diaria').textContent = a.nombre.replace(/^./, function (x) { return x.toUpperCase(); }) + ' · promedio ' + millones(prom) + ' por día con venta';
+  }
+
+  // ---------- Semana a semana ----------
+  var DIAS_CORTOS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+  function isoAUTC(iso) { return Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)); }
+  function utcAIso(t) { var x = new Date(t); return x.getUTCFullYear() + '-' + ('0' + (x.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + x.getUTCDate()).slice(-2); }
+  function lunesDe(iso) { var t = isoAUTC(iso); return utcAIso(t - ((new Date(t).getUTCDay() + 6) % 7) * 864e5); }
+  function sumarDiasIso(iso, n) { return utcAIso(isoAUTC(iso) + n * 864e5); }
+
+  /** Semanas (lunes a domingo) con la venta del grupo o del local elegido, hasta la fecha de los datos. */
+  function calcularSemanas() {
+    var d = estado.datos, hasta = d.actualizado;
+    var claves = {};
+    if (estado.local) claves[estado.local] = true;
+    else d.meses.forEach(function (m) { m.locales.filter(enGrupo).forEach(function (l) { claves[l.clave] = true; }); });
+
+    var porDia = {}, primero = null;
+    Object.keys(d.diario).forEach(function (mes) {
+      Object.keys(claves).forEach(function (k) {
+        (d.diario[mes][k] || []).forEach(function (p) {
+          if (hasta && p[0] > hasta) return;
+          porDia[p[0]] = (porDia[p[0]] || 0) + p[1];
+          if (!primero || p[0] < primero) primero = p[0];
+        });
+      });
+    });
+    if (!primero || !hasta) return [];
+
+    var semanas = [];
+    for (var lunes = lunesDe(primero); lunes <= hasta; lunes = sumarDiasIso(lunes, 7)) {
+      var dias = [], total = 0;
+      for (var i = 0; i < 7; i++) {
+        var f = sumarDiasIso(lunes, i);
+        var dentro = f >= primero && f <= hasta;
+        dias.push(dentro ? (porDia[f] || 0) : null);
+        if (dentro) total += porDia[f] || 0;
+      }
+      semanas.push({ lunes: lunes, domingo: sumarDiasIso(lunes, 6), dias: dias, venta: total,
+        nDias: dias.filter(function (v) { return v !== null; }).length });
+    }
+
+    semanas.forEach(function (s, i) {
+      s.parcial = s.nDias < 7;
+      var prev = semanas[i - 1];
+      if (!prev || prev.nDias < 7 && i - 1 === 0) { s.base = null; return; }
+      if (s.parcial && i === semanas.length - 1) {
+        // Semana en curso: contra los mismos días de la semana anterior.
+        s.base = prev.dias.slice(0, s.nDias).reduce(function (a, v) { return a + (v || 0); }, 0);
+        s.comparaDias = s.nDias;
+      } else s.base = prev.venta;
+      s.dif = s.venta - s.base;
+      s.var = s.base ? s.venta / s.base - 1 : null;
+    });
+    return semanas;
+  }
+
+  function rangoSemana(s) { return fechaCorta(s.lunes) + ' al ' + fechaCorta(s.domingo); }
+
+  function renderSemanal() {
+    var semanas = calcularSemanas();
+    var panel = $('panel-semanal');
+    if (!semanas.length) { panel.hidden = true; return; }
+    panel.hidden = false;
+
+    var s1 = css('--series-1');
+    var claro = s1.length === 7 ? s1 + '73' : s1; // la semana incompleta va más clara
+    var op = baseOpciones();
+    op.interaction = { mode: 'nearest', axis: 'x', intersect: false };
+    op.plugins.tooltip.callbacks = {
+      title: function (items) { var s = semanas[items[0].dataIndex]; return 'Semana del ' + rangoSemana(s) + (s.parcial ? ' (' + s.nDias + ' días)' : ''); },
+      label: function (ctx) {
+        var s = semanas[ctx.dataIndex];
+        return [' Venta: ' + millones(s.venta)].concat(s.var == null ? [] :
+          [' vs semana anterior' + (s.comparaDias ? ' (mismos días)' : '') + ': ' + (s.var >= 0 ? '+' : '') + pct(s.var)]);
+      }
+    };
+    dibujar('ch-semanal', {
+      type: 'bar',
+      data: { labels: semanas.map(function (s) { return fechaCorta(s.lunes); }), datasets: [{
+        label: 'Venta', data: semanas.map(function (s) { return s.venta; }),
+        backgroundColor: semanas.map(function (s) { return s.parcial ? claro : s1; }),
+        maxBarThickness: 24, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start'
+      }] },
+      options: op
+    });
+    $('leyenda-semanal').innerHTML = '<span><i class="caja" style="background:' + s1 + '"></i>Semana completa</span>' +
+      '<span><i class="caja" style="background:' + claro + '"></i>Semana incompleta</span>';
+
+    var ultimas = semanas.slice(-12).reverse();
+    var flecha = function (v) {
+      if (v == null) return '<td>–</td>';
+      return '<td class="' + (v >= 0 ? 'pos-var' : 'neg') + '">' + (v >= 0 ? '▲ +' : '▼ −') + pct(Math.abs(v)) + '</td>';
+    };
+    $('tabla-semanal').innerHTML = '<thead><tr><th class="izq" scope="col">Semana</th><th scope="col">Venta</th>' +
+      '<th scope="col">Diferencia vs anterior</th><th scope="col">Variación</th></tr></thead><tbody>' +
+      ultimas.map(function (s, i) {
+        var etiqueta = rangoSemana(s) + (i === 0 && s.parcial ? ' <span class="nota">(en curso: ' + DIAS_CORTOS[0] + ' a ' + DIAS_CORTOS[s.nDias - 1] + ', vs mismos días)</span>' : '');
+        return '<tr><td class="izq">' + etiqueta + '</td><td>' + millones(s.venta) + '</td><td>' +
+          (s.dif == null ? '–' : (s.dif >= 0 ? '+' : '−') + millones(Math.abs(s.dif))) + '</td>' + flecha(s.var) + '</tr>';
+      }).join('') + '</tbody>';
+
+    var nombre = estado.local ? alcance(calcularMes(estado.mes)).nombre : grupoTexto();
+    $('nota-semanal').textContent = nombre.replace(/^./, function (x) { return x.toUpperCase(); }) +
+      ' · semanas de lunes a domingo, todo el año (no depende del filtro de Mes). La tabla muestra las últimas 12.';
   }
 
   function renderEvolucion() {
