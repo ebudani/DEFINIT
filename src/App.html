@@ -389,17 +389,20 @@
       return '<td class="' + (v >= 0 ? 'pos-var' : 'neg') + '">' + (v >= 0 ? '▲ +' : '▼ −') + pct(Math.abs(v)) + '</td>';
     };
     $('tabla-semanal').innerHTML = '<thead><tr><th class="izq" scope="col">Semana</th><th scope="col">Venta</th>' +
-      '<th scope="col">Diferencia vs anterior</th><th scope="col">Variación</th></tr></thead><tbody>' +
+      '<th scope="col">Dif. vs anterior</th><th scope="col">Var.</th></tr></thead><tbody>' +
       ultimas.map(function (s, i) {
-        var etiqueta = rangoSemana(s) + (i === 0 && s.parcial ? ' <span class="nota">(en curso: hay ventas de ' + DIAS_CORTOS[0] + ' a ' + DIAS_CORTOS[s.nDias - 1] +
-          '; se compara contra ' + DIAS_CORTOS[0] + ' a ' + DIAS_CORTOS[s.nDias - 1] + ' de la semana anterior)</span>' : '');
+        var etiqueta = fechaCorta(s.lunes) + '–' + fechaCorta(s.domingo) + (i === 0 && s.parcial
+          ? '<br><span class="nota">en curso</span>' : '');
         return '<tr><td class="izq">' + etiqueta + '</td><td>' + millones(s.venta) + '</td><td>' +
           (s.dif == null ? '–' : (s.dif >= 0 ? '+' : '−') + millones(Math.abs(s.dif))) + '</td>' + flecha(s.var) + '</tr>';
       }).join('') + '</tbody>';
 
     var nombre = estado.local ? alcance(calcularMes(estado.mes)).nombre : grupoTexto();
+    var ult = semanas[semanas.length - 1];
     $('nota-semanal').textContent = nombre.replace(/^./, function (x) { return x.toUpperCase(); }) +
-      ' · semanas de lunes a domingo, todo el año (no depende del filtro de Mes). La tabla muestra las últimas 12.';
+      ' · semanas de lunes a domingo, todo el año (no depende del filtro de Mes). La tabla muestra las últimas 12.' +
+      (ult.parcial ? ' La semana en curso tiene ventas de ' + DIAS_CORTOS[0] + ' a ' + DIAS_CORTOS[ult.nDias - 1] +
+        ' y se compara contra esos mismos días de la semana anterior.' : '');
   }
 
   function renderEvolucion() {
