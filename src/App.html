@@ -4,7 +4,10 @@
 
   var estado = { datos: null, mes: null, grupo: 'propio', local: '', orden: { col: 'venta', dir: -1 }, vsMapa: 'super' };
   var graficos = {};
-  if (window.Chart) Chart.defaults.font.family = 'Montserrat, system-ui, -apple-system, "Segoe UI", sans-serif';
+  if (window.Chart) {
+    Chart.defaults.font.family = 'Montserrat, system-ui, -apple-system, "Segoe UI", sans-serif';
+    Chart.defaults.font.size = window.matchMedia && window.matchMedia('(max-width: 600px)').matches ? 10 : 11;
+  }
   var $ = function (id) { return document.getElementById(id); };
 
   // ---------- Formato ----------
