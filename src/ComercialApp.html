@@ -187,7 +187,8 @@
         var d = JSON.parse(json);
         if (d.sinAcceso) {
           estado.className = 'estado error';
-          estado.textContent = 'Tu cuenta de Google no tiene acceso a la carpeta con los archivos comerciales. Pedile acceso a quien la administra.';
+          estado.textContent = 'Tu cuenta de Google no tiene acceso a la carpeta con los archivos comerciales. Pedile acceso a quien la administra.' +
+            (d.detalle ? ' (Detalle: ' + d.detalle + ')' : '');
           $('c-contenido').hidden = true;
           return;
         }

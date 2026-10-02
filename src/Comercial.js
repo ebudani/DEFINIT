@@ -21,7 +21,12 @@ function getComercial() {
     carpeta = DriveApp.getFolderById(CARPETA_COMERCIAL_ID);
     carpeta.getName();
   } catch (e) {
-    return JSON.stringify({ sinAcceso: true });
+    var msg = String(e && e.message || e);
+    // Falta autorizar el permiso de Drive: no es falta de acceso a la carpeta.
+    if (/permission to call|required permissions|autoriz|authoriz/i.test(msg)) {
+      throw new Error('Falta autorizar el permiso para ver archivos de Drive. Abrí el tablero en una ventana de incógnito y aceptá los permisos. (' + msg + ')');
+    }
+    return JSON.stringify({ sinAcceso: true, detalle: msg });
   }
 
   var archivo = null;
