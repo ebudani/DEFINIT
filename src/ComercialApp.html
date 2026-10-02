@@ -41,7 +41,9 @@
   // ---------- Datos ----------
   /** Locales del archivo de cobros que corresponden al Grupo / Local elegidos arriba. */
   function localesElegidos() {
-    var d = est.datos, f = est.filtros || { grupo: 'propio', local: '', clavesGrupo: [] };
+    var d = est.datos, f = est.filtros;
+    // Sin datos de Facturación (sin acceso a esa planilla) no hay filtros: todos los locales propios.
+    if (!f) return d.locales.filter(function (l) { return d.equivalencias[l] != null; });
     return d.locales.filter(function (l) {
       var clave = d.equivalencias[l];
       if (f.local) return clave === f.local;
