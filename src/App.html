@@ -391,7 +391,8 @@
     $('tabla-semanal').innerHTML = '<thead><tr><th class="izq" scope="col">Semana</th><th scope="col">Venta</th>' +
       '<th scope="col">Diferencia vs anterior</th><th scope="col">Variación</th></tr></thead><tbody>' +
       ultimas.map(function (s, i) {
-        var etiqueta = rangoSemana(s) + (i === 0 && s.parcial ? ' <span class="nota">(en curso: ' + DIAS_CORTOS[0] + ' a ' + DIAS_CORTOS[s.nDias - 1] + ', vs mismos días)</span>' : '');
+        var etiqueta = rangoSemana(s) + (i === 0 && s.parcial ? ' <span class="nota">(en curso: hay ventas de ' + DIAS_CORTOS[0] + ' a ' + DIAS_CORTOS[s.nDias - 1] +
+          '; se compara contra ' + DIAS_CORTOS[0] + ' a ' + DIAS_CORTOS[s.nDias - 1] + ' de la semana anterior)</span>' : '');
         return '<tr><td class="izq">' + etiqueta + '</td><td>' + millones(s.venta) + '</td><td>' +
           (s.dif == null ? '–' : (s.dif >= 0 ? '+' : '−') + millones(Math.abs(s.dif))) + '</td>' + flecha(s.var) + '</tr>';
       }).join('') + '</tbody>';
