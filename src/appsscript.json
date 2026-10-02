@@ -12,7 +12,8 @@
     ]
   },
   "oauthScopes": [
-    "https://www.googleapis.com/auth/spreadsheets.readonly"
+    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    "https://www.googleapis.com/auth/drive.readonly"
   ],
   "webapp": {
     "executeAs": "USER_ACCESSING",

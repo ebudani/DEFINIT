@@ -23,7 +23,23 @@ en ningún servidor ni en este repositorio.
 
 - Solo lee las pestañas **Ventas Mensuales** y las mensuales (`Septiembre26`, `Agosto26`, …).
   Cualquier otra pestaña (por ejemplo la de clientes con DNI) no se abre.
-- Permiso pedido: `spreadsheets.readonly` (solo lectura, no puede modificar nada).
+- Permisos pedidos, ambos de solo lectura (no puede modificar nada): `spreadsheets.readonly`
+  para Facturación 2026 y `drive.readonly` para leer los Excel de la pestaña Comercial.
+
+### Pestaña Comercial
+
+Lee el Excel **"Descuentos por locales…"** más reciente de la carpeta compartida
+(`CARPETA_COMERCIAL_ID` en `src/Comercial.js`) tal cual está, sin convertirlo ni copiarlo.
+Cuando se sube uno nuevo, el tablero lo toma solo. El cálculo queda en caché 6 h por archivo.
+Muestra cantidad de ventas, ticket promedio (sin IVA), % de descuento, mix de cuotas y
+formas de pago, por local y mes. Solo la ve quien tiene acceso a esa carpeta en Drive.
+
+| Indicador | Cálculo |
+|---|---|
+| Cantidad de ventas | Cobros con venta neta > 0 |
+| Ticket promedio | Venta neta ÷ 1,21 ÷ cantidad de ventas |
+| % de descuento | Descuento ÷ venta bruta, de todos los cobros (mismo criterio que la tabla dinámica del archivo) |
+| Mix de cuotas / formas de pago | % de la venta neta según "Condición de Pago" / "Forma de Pago" |
 - Acceso: **quien tenga acceso a la planilla en Drive** (`"executeAs": "USER_ACCESSING"`,
   `"access": "ANYONE"` en `src/appsscript.json`). Cualquiera con el link puede abrir la
   página, pero los datos se leen con los permisos de quien la abre: sin acceso a

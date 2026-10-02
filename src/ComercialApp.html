@@ -1,0 +1,185 @@
+<script>
+// Pestaña Comercial: lee getComercial() (último Excel "Descuentos por locales" de la carpeta)
+// la primera vez que se abre la pestaña, y arma indicadores, gráficos y tabla por local.
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var est = { datos: null, mes: null, local: '', cargando: false };
+  var graficos = {};
+
+  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  var COLORES = ['#2a78d6', '#1baf7a', '#0000ff', '#eb6834', '#b7b8c0', '#e87ba4'];
+  var nf1 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  var nf0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+  function miles(v) { return v == null ? '–' : '$' + nf0.format(v / 1000) + ' mil'; }
+  function pct(v) { return v == null || !isFinite(v) ? '–' : nf1.format(v * 100) + '%'; }
+  function mesCorto(m) { var n = MESES[+m.slice(5, 7) - 1]; return n.charAt(0).toUpperCase() + n.slice(1); }
+  function mesLargo(m) { return mesCorto(m) + ' ' + m.slice(0, 4); }
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ---------- Pestañas ----------
+  function mostrar(cual) {
+    var comercial = cual === 'comercial';
+    $('vista-ventas').hidden = comercial;
+    $('vista-comercial').hidden = !comercial;
+    $('tab-ventas').setAttribute('aria-selected', String(!comercial));
+    $('tab-comercial').setAttribute('aria-selected', String(comercial));
+    if (comercial && !est.datos && !est.cargando) cargar();
+    if (comercial && est.datos) render();
+  }
+  $('tab-ventas').addEventListener('click', function () { mostrar('ventas'); });
+  $('tab-comercial').addEventListener('click', function () { mostrar('comercial'); });
+  $('btn-actualizar').addEventListener('click', function () { if (!$('vista-comercial').hidden) cargar(); });
+
+  // ---------- Datos ----------
+  function agregado(mes, local) {
+    var d = est.datos, r = { ops: 0, neto: 0, bruto: 0, desc: 0, cuotas: {}, formas: {} };
+    (local ? [local] : d.locales).forEach(function (l) {
+      var x = (d.datos[l] || {})[mes];
+      if (!x) return;
+      r.ops += x.ops; r.neto += x.neto; r.bruto += x.bruto; r.desc += x.desc;
+      ['cuotas', 'formas'].forEach(function (k) {
+        Object.keys(x[k]).forEach(function (c) { r[k][c] = (r[k][c] || 0) + x[k][c]; });
+      });
+    });
+    r.ticket = r.ops ? r.neto / 1.21 / r.ops : null;
+    r.pDesc = r.bruto ? r.desc / r.bruto : null;
+    var reparto = function (obj, claves) {
+      var tot = claves.reduce(function (a, c) { return a + (obj[c] || 0); }, 0), o = {};
+      claves.forEach(function (c) { o[c] = tot ? (obj[c] || 0) / tot : 0; });
+      return o;
+    };
+    r.pCuotas = reparto(r.cuotas, d.cuotas);
+    r.pFormas = reparto(r.formas, d.formas);
+    r.p6mas = r.pCuotas['6 cuotas'] + r.pCuotas['12 cuotas'];
+    return r;
+  }
+
+  // ---------- Render ----------
+  function render() {
+    var d = est.datos, mes = est.mes, local = est.local;
+    var i = d.meses.indexOf(mes);
+    var a = agregado(mes, local), p = i > 0 ? agregado(d.meses[i - 1], local) : null;
+    var mesAnt = i > 0 ? mesCorto(d.meses[i - 1]) : '';
+
+    var delta = function (act, ant, fmt, subirEsMalo) {
+      if (!p || act == null || ant == null) return '&nbsp;';
+      var dif = act - ant;
+      if (Math.abs(dif) < 1e-9) return 'igual que ' + mesAnt;
+      var bueno = (dif > 0) !== !!subirEsMalo;
+      return '<span style="color:' + (bueno ? css('--good-text') : css('--critical-text')) + '">' + (dif > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dif)) + '</span> vs ' + mesAnt;
+    };
+    var pts = function (v) { return nf1.format(v * 100) + ' pts'; };
+    $('c-kpis').innerHTML = [
+      ['Cantidad de ventas', nf0.format(a.ops), delta(a.ops, p && p.ops, function (v) { return nf0.format(v); })],
+      ['Ticket promedio (sin IVA)', miles(a.ticket), delta(a.ticket, p && p.ticket, miles)],
+      ['% de descuento', pct(a.pDesc), delta(a.pDesc, p && p.pDesc, pts, true)],
+      ['Venta en 6 o más cuotas', pct(a.p6mas), delta(a.p6mas, p && p.p6mas, pts, true)]
+    ].map(function (k, j) {
+      return '<div class="kpi' + (j === 0 ? ' hero' : '') + '"><div class="kpi-label">' + k[0] + '</div><div class="kpi-valor">' + k[1] +
+        '</div><div class="kpi-det">' + k[2] + '</div></div>';
+    }).join('');
+
+    var serie = d.meses.map(function (m) { return agregado(m, local); });
+    var etiquetas = d.meses.map(mesCorto);
+    var s1 = css('--series-1'), claro = '#9999ff';
+    var base = function (fmtY) {
+      return {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: '#fff', titleColor: css('--ink'), bodyColor: css('--ink'),
+          borderColor: css('--axis'), borderWidth: 1, padding: 10, callbacks: { label: function (c) { return ' ' + fmtY(c.raw); } } } },
+        scales: { x: { grid: { display: false }, ticks: { color: css('--muted') } },
+          y: { beginAtZero: true, grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--muted'), callback: fmtY } } }
+      };
+    };
+    var dibujar = function (id, cfg) { if (graficos[id]) graficos[id].destroy(); graficos[id] = new Chart($(id), cfg); };
+    var barras = function (id, datos, fmtY) {
+      dibujar(id, { type: 'bar', data: { labels: etiquetas, datasets: [{ data: datos,
+        backgroundColor: d.meses.map(function (m) { return m === mes ? s1 : claro; }), maxBarThickness: 24,
+        borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] }, options: base(fmtY) });
+    };
+    barras('c-ch-ticket', serie.map(function (s) { return s.ticket; }), miles);
+    barras('c-ch-ops', serie.map(function (s) { return s.ops; }), function (v) { return nf0.format(v); });
+
+    var crit = css('--critical');
+    dibujar('c-ch-desc', { type: 'line', data: { labels: etiquetas, datasets: [{ data: serie.map(function (s) { return s.pDesc; }),
+      borderColor: crit, backgroundColor: 'rgba(208,59,59,.08)', fill: 'origin', borderWidth: 2, pointBackgroundColor: crit,
+      pointRadius: d.meses.map(function (m) { return m === mes ? 5 : 3; }) }] }, options: base(pct) });
+
+    var apilado = function (id, claves, campo) {
+      var op = base(pct);
+      op.plugins.legend = { display: true, position: 'bottom', labels: { boxWidth: 12, color: css('--ink-2') } };
+      op.plugins.tooltip.callbacks.label = function (c) { return ' ' + c.dataset.label + ': ' + pct(c.raw); };
+      op.scales.x.stacked = true; op.scales.y.stacked = true; op.scales.y.max = 1;
+      dibujar(id, { type: 'bar', data: { labels: etiquetas, datasets: claves.map(function (c, j) {
+        return { label: c, data: serie.map(function (s) { return s[campo][c]; }), backgroundColor: COLORES[j % COLORES.length],
+          maxBarThickness: 28, borderColor: '#fff', borderWidth: { top: 2 } };
+      }) }, options: op });
+    };
+    apilado('c-ch-cuotas', d.cuotas, 'pCuotas');
+    apilado('c-ch-formas', d.formas, 'pFormas');
+
+    var nombre = local || 'Todos los locales';
+    $('c-n-ticket').textContent = nombre + ' · venta neta ÷ 1,21 ÷ cantidad de ventas';
+    $('c-n-ops').textContent = nombre + ' · cobros con venta neta positiva';
+    $('c-n-desc').textContent = nombre + ' · descuento ÷ venta bruta (todos los cobros)';
+
+    var filas = d.locales.map(function (l) { var x = agregado(mes, l); x.local = l; return x; })
+      .filter(function (x) { return x.ops; }).sort(function (x, y) { return y.neto - x.neto; });
+    var colorDesc = function (v) { return v == null ? 'transparent' : v >= 0.40 ? '#fde0de' : v >= 0.30 ? '#fff3c4' : '#dcf5ee'; };
+    var celdas = function (x) {
+      return '<td>' + miles(x.ticket) + '</td><td>' + nf0.format(x.ops) + '</td><td><span class="chip-pct" style="background:' +
+        colorDesc(x.pDesc) + '">' + pct(x.pDesc) + '</span></td>' +
+        d.cuotas.slice(0, 4).map(function (c) { return '<td>' + pct(x.pCuotas[c]) + '</td>'; }).join('');
+    };
+    $('c-tabla').innerHTML = '<thead><tr><th class="izq">Local</th><th>Ticket prom.</th><th>Ventas</th><th>% Desc.</th>' +
+      d.cuotas.slice(0, 4).map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      filas.map(function (x) { return '<tr' + (x.local === local ? ' class="sel"' : '') + '><td class="izq">' + esc(x.local) + '</td>' + celdas(x) + '</tr>'; }).join('') +
+      '</tbody><tfoot><tr><td class="izq">Total</td>' + celdas(agregado(mes, '')) + '</tr></tfoot>';
+    $('c-n-tabla').textContent = mesLargo(mes) + ' · ordenado por venta · % Desc.: verde menos de 30%, amarillo 30–40%, rojo 40% o más';
+  }
+
+  // ---------- Carga ----------
+  function cargar() {
+    est.cargando = true;
+    var estado = $('c-estado');
+    estado.hidden = false; estado.className = 'estado'; estado.textContent = 'Leyendo el Excel de descuentos de la carpeta…';
+    google.script.run
+      .withSuccessHandler(function (json) {
+        est.cargando = false;
+        var d = JSON.parse(json);
+        if (d.sinAcceso) {
+          estado.className = 'estado error';
+          estado.textContent = 'Tu cuenta de Google no tiene acceso a la carpeta con los archivos comerciales. Pedile acceso a quien la administra.';
+          $('c-contenido').hidden = true;
+          return;
+        }
+        est.datos = d;
+        if (d.meses.indexOf(est.mes) < 0) est.mes = d.meses[d.meses.length - 1];
+        if (d.locales.indexOf(est.local) < 0) est.local = '';
+        $('c-mes').innerHTML = d.meses.slice().reverse().map(function (m) {
+          return '<option value="' + m + '"' + (m === est.mes ? ' selected' : '') + '>' + mesLargo(m) + '</option>';
+        }).join('');
+        $('c-local').innerHTML = '<option value="">Todos los locales</option>' + d.locales.map(function (l) {
+          return '<option' + (l === est.local ? ' selected' : '') + '>' + esc(l) + '</option>';
+        }).join('');
+        $('c-fuente').textContent = 'Fuente: ' + d.archivo + ' (actualizado ' + d.actualizadoArchivo.replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1') +
+          ') · datos de ' + mesLargo(d.meses[0]) + ' a ' + mesLargo(d.meses[d.meses.length - 1]) + '.';
+        estado.hidden = true;
+        $('c-contenido').hidden = false;
+        render();
+      })
+      .withFailureHandler(function (err) {
+        est.cargando = false;
+        estado.className = 'estado error';
+        estado.textContent = 'No se pudieron leer los datos comerciales: ' + (err && err.message ? err.message : err);
+      })
+      .getComercial();
+  }
+
+  $('c-mes').addEventListener('change', function (e) { est.mes = e.target.value; render(); });
+  $('c-local').addEventListener('change', function (e) { est.local = e.target.value; render(); });
+})();
+</script>

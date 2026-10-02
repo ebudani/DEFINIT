@@ -1,6 +1,8 @@
 # Datos de ventas: nunca al repo
 dev/raw.json
 dev/index.html
+dev/maqueta*.html
+dev/comercial.json
 *.xlsx
 *.csv
 
