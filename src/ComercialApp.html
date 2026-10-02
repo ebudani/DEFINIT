@@ -185,6 +185,14 @@
       .withSuccessHandler(function (json) {
         est.cargando = false;
         var d = JSON.parse(json);
+        if (d.necesitaAutorizar) {
+          estado.className = 'estado';
+          estado.innerHTML = 'Para ver los indicadores comerciales, Google necesita que autorices el permiso de <strong>ver archivos de Drive</strong> (solo lectura).<br><br>' +
+            '<a class="btn" href="' + esc(d.url) + '" target="_blank" rel="noopener">Autorizar acceso a Drive</a><br><br>' +
+            '<span class="nota">Se abre en otra pestaña. Marcá el permiso de Drive, aceptá, y después volvé acá y tocá <strong>Actualizar</strong>.</span>';
+          $('c-contenido').hidden = true;
+          return;
+        }
         if (d.sinAcceso) {
           estado.className = 'estado error';
           estado.textContent = 'Tu cuenta de Google no tiene acceso a la carpeta con los archivos comerciales. Pedile acceso a quien la administra.' +

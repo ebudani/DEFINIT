@@ -16,6 +16,15 @@ var CARPETA_COMERCIAL_ID = '1rqvtYLmOmLqtuvovHk4jIZJIZVhg3TpB';
 var PATRON_DESCUENTOS = /^descuentos por locales.*\.xlsx$/i;
 
 function getComercial() {
+  // Google permite autorizar los permisos por separado: si quien abre el tablero no
+  // dio el de Drive, se devuelve el link para darlo en vez de fallar.
+  try {
+    var info = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL, ['https://www.googleapis.com/auth/drive.readonly']);
+    if (info.getAuthorizationStatus() === ScriptApp.AuthorizationStatus.REQUIRED) {
+      return JSON.stringify({ necesitaAutorizar: true, url: info.getAuthorizationUrl() });
+    }
+  } catch (e) { /* si no se puede consultar, se sigue y el error real aparece más abajo */ }
+
   var carpeta;
   try {
     carpeta = DriveApp.getFolderById(CARPETA_COMERCIAL_ID);
