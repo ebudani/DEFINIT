@@ -91,16 +91,8 @@
   .logo-circulo { fill: #0000ff; }
   .titulo { margin-bottom: 16px; }
 
-  /* Pestañas Ventas / Comercial */
-  .pestanas { display: flex; gap: 4px; border-bottom: 1px solid var(--axis); margin: -6px 0 18px; }
-  .pestanas button {
-    font: inherit; font-size: 15px; font-weight: 600; color: var(--ink-2); background: none; border: 0;
-    border-bottom: 3px solid transparent; padding: 8px 16px 9px; margin-bottom: -1px; cursor: pointer;
-  }
-  .pestanas button[aria-selected="true"] { color: var(--brand); border-bottom-color: var(--brand); }
-  .pestanas button:hover { color: var(--ink); }
-
-  /* Pestaña Comercial */
+  /* Sección Indicadores comerciales (debajo de las ventas, en la misma página) */
+  .seccion-comercial { margin-top: 32px; padding-top: 24px; border-top: 3px solid var(--brand); }
   .kpis.kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .chip-pct { display: inline-block; min-width: 58px; text-align: center; border-radius: 4px; padding: 2px 6px; }
   .ranking-com td { border-bottom: 1px solid var(--grid); }

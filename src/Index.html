@@ -30,11 +30,7 @@
     </a>
     <button type="button" id="btn-actualizar" class="btn">Actualizar</button>
   </header>
-  <nav class="pestanas" role="tablist" aria-label="Secciones">
-    <button type="button" role="tab" id="tab-ventas" aria-selected="true" aria-controls="vista-ventas">Ventas</button>
-    <button type="button" role="tab" id="tab-comercial" aria-selected="false" aria-controls="vista-comercial">Comercial</button>
-  </nav>
-  <div id="vista-ventas" role="tabpanel" aria-labelledby="tab-ventas">
+  <div id="vista-ventas">
   <div class="titulo">
     <h1>Tablero Mensual de Ventas</h1>
     <p class="sub" id="fuente">Leyendo Facturación 2026…</p>
@@ -92,18 +88,6 @@
       </section>
     </div>
 
-    <section class="panel" id="panel-semanal" hidden>
-      <div class="panel-head">
-        <h2>Ventas semana a semana</h2>
-        <p class="nota" id="nota-semanal"></p>
-      </div>
-      <div class="leyenda" id="leyenda-semanal"></div>
-      <div class="chart"><canvas id="ch-semanal" aria-label="Venta por semana"></canvas></div>
-      <div class="tabla-scroll" style="margin-top:14px">
-        <table class="semanal" id="tabla-semanal"></table>
-      </div>
-    </section>
-
     <section class="panel" id="panel-evolucion" hidden>
       <div class="panel-head">
         <h2>Evolución mensual</h2>
@@ -111,6 +95,18 @@
       </div>
       <div class="leyenda" id="leyenda-evolucion"></div>
       <div class="chart chart-alto"><canvas id="ch-evolucion" aria-label="Venta y Meta por mes"></canvas></div>
+    </section>
+
+    <section class="panel" id="panel-semanal" hidden>
+      <div class="panel-head">
+        <h2>Evolución por semanas</h2>
+        <p class="nota" id="nota-semanal"></p>
+      </div>
+      <div class="leyenda" id="leyenda-semanal"></div>
+      <div class="chart"><canvas id="ch-semanal" aria-label="Venta por semana"></canvas></div>
+      <div class="tabla-scroll" style="margin-top:14px">
+        <table class="semanal" id="tabla-semanal"></table>
+      </div>
     </section>
 
     <section class="panel" id="panel-mapa" hidden>
@@ -135,9 +131,9 @@
   </main>
   </div>
 
-  <div id="vista-comercial" role="tabpanel" aria-labelledby="tab-comercial" hidden>
+  <section id="vista-comercial" class="seccion-comercial" aria-labelledby="titulo-comercial">
     <div class="titulo">
-      <h1>Tablero Comercial</h1>
+      <h1 id="titulo-comercial">Indicadores comerciales</h1>
       <p class="sub" id="c-fuente">Ticket promedio, cantidad de ventas, descuentos, cuotas y formas de pago, por local y mes.</p>
     </div>
     <nav class="filtros" aria-label="Filtros comerciales">
@@ -159,7 +155,7 @@
         <div class="tabla-scroll"><table class="ranking-com" id="c-tabla"></table></div>
       </section>
     </div>
-  </div>
+  </section>
 
   <div class="tooltip" id="tooltip" role="status" hidden></div>
 

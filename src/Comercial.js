@@ -1,5 +1,5 @@
 /**
- * Pestaña Comercial: KPIs por local y mes a partir del último Excel
+ * Indicadores comerciales: KPIs por local y mes a partir del último Excel
  * "Descuentos por locales" que haya en la carpeta compartida.
  *
  * El Excel se lee tal cual (sin convertirlo ni copiarlo): se descomprime y se

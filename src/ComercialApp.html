@@ -1,6 +1,6 @@
 <script>
-// Pestaña Comercial: lee getComercial() (último Excel "Descuentos por locales" de la carpeta)
-// la primera vez que se abre la pestaña, y arma indicadores, gráficos y tabla por local.
+// Indicadores comerciales: lee getComercial() (último Excel "Descuentos por locales" de la carpeta)
+// al abrir la página (y con Actualizar), y arma indicadores, gráficos y tabla por local.
 (function () {
   'use strict';
 
@@ -19,19 +19,7 @@
   function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
-  // ---------- Pestañas ----------
-  function mostrar(cual) {
-    var comercial = cual === 'comercial';
-    $('vista-ventas').hidden = comercial;
-    $('vista-comercial').hidden = !comercial;
-    $('tab-ventas').setAttribute('aria-selected', String(!comercial));
-    $('tab-comercial').setAttribute('aria-selected', String(comercial));
-    if (comercial && !est.datos && !est.cargando) cargar();
-    if (comercial && est.datos) render();
-  }
-  $('tab-ventas').addEventListener('click', function () { mostrar('ventas'); });
-  $('tab-comercial').addEventListener('click', function () { mostrar('comercial'); });
-  $('btn-actualizar').addEventListener('click', function () { if (!$('vista-comercial').hidden) cargar(); });
+  $('btn-actualizar').addEventListener('click', function () { if (!est.cargando) cargar(); });
 
   // ---------- Datos ----------
   function agregado(mes, local) {
@@ -181,5 +169,6 @@
 
   $('c-mes').addEventListener('change', function (e) { est.mes = e.target.value; render(); });
   $('c-local').addEventListener('change', function (e) { est.local = e.target.value; render(); });
+  cargar();
 })();
 </script>
