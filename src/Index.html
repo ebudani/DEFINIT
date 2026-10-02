@@ -30,10 +30,13 @@
     </a>
     <button type="button" id="btn-actualizar" class="btn">Actualizar</button>
   </header>
-  <div id="vista-ventas">
   <div class="titulo">
-    <h1>Tablero Mensual de Ventas</h1>
+    <h1 class="vistas" role="tablist" aria-label="Vistas del tablero">
+      <button type="button" role="tab" id="tab-ventas" aria-selected="true" aria-controls="vista-ventas">Tablero Mensual de Ventas</button>
+      <button type="button" role="tab" id="tab-comercial" aria-selected="false" aria-controls="vista-comercial">Indicadores comerciales</button>
+    </h1>
     <p class="sub" id="fuente">Leyendo Facturación 2026…</p>
+    <p class="sub" id="c-fuente" hidden></p>
   </div>
 
   <nav class="filtros" aria-label="Filtros">
@@ -55,6 +58,7 @@
     </label>
   </nav>
 
+  <div id="vista-ventas" role="tabpanel" aria-labelledby="tab-ventas">
   <main id="app" aria-busy="true">
     <p class="estado" id="estado">Cargando datos de la planilla…</p>
 
@@ -131,31 +135,28 @@
   </main>
   </div>
 
-  <section id="vista-comercial" class="seccion-comercial" aria-labelledby="titulo-comercial">
-    <div class="titulo">
-      <h1 id="titulo-comercial">Indicadores comerciales</h1>
-      <p class="sub" id="c-fuente">Ticket promedio, cantidad de ventas, descuentos, cuotas y formas de pago, por local y mes.</p>
-    </div>
-    <nav class="filtros" aria-label="Filtros comerciales">
-      <label class="campo"><span>Mes</span><select id="c-mes"></select></label>
-      <label class="campo"><span>Local</span><select id="c-local"></select></label>
-    </nav>
+  <div id="vista-comercial" role="tabpanel" aria-labelledby="tab-comercial" hidden>
     <p class="estado" id="c-estado">Cargando datos comerciales…</p>
     <div id="c-contenido" hidden>
+      <p class="aviso" id="c-aviso" hidden></p>
       <section class="kpis kpis-4" id="c-kpis"></section>
-      <div class="grid-2">
+      <div class="grid-2" id="c-graficos">
         <section class="panel"><div class="panel-head"><h2>Ticket promedio (sin IVA)</h2><p class="nota" id="c-n-ticket"></p></div><div class="chart"><canvas id="c-ch-ticket"></canvas></div></section>
         <section class="panel"><div class="panel-head"><h2>Cantidad de ventas</h2><p class="nota" id="c-n-ops"></p></div><div class="chart"><canvas id="c-ch-ops"></canvas></div></section>
         <section class="panel"><div class="panel-head"><h2>% de descuento sobre la venta bruta</h2><p class="nota" id="c-n-desc"></p></div><div class="chart"><canvas id="c-ch-desc"></canvas></div></section>
         <section class="panel"><div class="panel-head"><h2>Mix de cuotas (% de la venta)</h2><p class="nota">Cómo se reparte la venta según la cantidad de cuotas.</p></div><div class="chart"><canvas id="c-ch-cuotas"></canvas></div></section>
       </div>
-      <section class="panel"><div class="panel-head"><h2>Formas de pago (% de la venta)</h2><p class="nota">Crédito, débito, web, transferencia y efectivo, por mes.</p></div><div class="chart"><canvas id="c-ch-formas"></canvas></div></section>
       <section class="panel">
         <div class="panel-head"><h2>Por local</h2><p class="nota" id="c-n-tabla"></p></div>
         <div class="tabla-scroll"><table class="ranking-com" id="c-tabla"></table></div>
       </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Ocupación y sesiones</h2>
+          <p class="nota">Próximamente: % de ocupación de agenda, minutos y sesiones vendidas, precio por minuto y cortesías
+          (archivos "Minutos x mes x sucursal" y "Venta_Items_Sesiones").</p></div>
+      </section>
     </div>
-  </section>
+  </div>
 
   <div class="tooltip" id="tooltip" role="status" hidden></div>
 

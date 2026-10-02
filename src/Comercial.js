@@ -32,7 +32,7 @@ function getComercial() {
   }
   if (!archivo) throw new Error('No encontré ningún Excel "Descuentos por locales" en la carpeta.');
 
-  var clave = 'comercial:' + archivo.getId() + ':' + archivo.getLastUpdated().getTime();
+  var clave = 'comercial2:' + archivo.getId() + ':' + archivo.getLastUpdated().getTime();
   var cache = CacheService.getScriptCache();
   var guardado = cache.get(clave);
   if (guardado) return guardado;
@@ -183,11 +183,29 @@ function agregarCobros(filas) {
       [x.cuotas, x.formas].forEach(function (o) { Object.keys(o).forEach(function (k) { o[k] = Math.round(o[k]); }); });
     });
   });
+  var locales = Object.keys(datos).sort(function (a, b) { return a.localeCompare(b, 'es'); });
+  var equivalencias = {};
+  locales.forEach(function (l) { equivalencias[l] = claveFacturacion(l); });
   return {
     meses: Object.keys(meses).sort(),
-    locales: Object.keys(datos).sort(function (a, b) { return a.localeCompare(b, 'es'); }),
+    locales: locales, equivalencias: equivalencias,
     cuotas: CUOTAS_COMERCIAL, formas: FORMAS_COMERCIAL, datos: datos
   };
+}
+
+// Nombre en el sistema de cobros -> nombre en Facturación 2026 (cuando no es el mismo).
+// Caballito = Little Horse. Tom no está en Facturación: queda sin equivalencia.
+var EQUIVALENCIAS_LOCALES = {
+  'alcorta shopping': 'alcorta', 'coronel diaz': 'coronel', 'dot baires shopping': 'dot',
+  'las palmas del pilar': 'palmas', 'lomas de san isidro': 'san isidro', 'portal palermo': 'portal',
+  'ramos mejia': 'ramos', 'solar shopping': 'solar', 'ecommerce': 'ecom', 'caballito': 'little horse',
+  'tom': null
+};
+
+/** Clave del local en Facturación 2026 (misma normalización que claveLocal de Parser.js), o null. */
+function claveFacturacion(nombre) {
+  var k = String(nombre || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+  return k in EQUIVALENCIAS_LOCALES ? EQUIVALENCIAS_LOCALES[k] : k;
 }
 
 if (typeof module !== 'undefined') {

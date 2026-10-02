@@ -91,8 +91,17 @@
   .logo-circulo { fill: #0000ff; }
   .titulo { margin-bottom: 16px; }
 
-  /* Sección Indicadores comerciales (debajo de las ventas, en la misma página) */
-  .seccion-comercial { margin-top: 32px; padding-top: 24px; border-top: 3px solid var(--brand); }
+  /* Título con las dos vistas: Tablero Mensual de Ventas | Indicadores comerciales */
+  .vistas { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+  .vistas button {
+    font: inherit; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--muted);
+    background: none; border: 0; border-bottom: 3px solid transparent; padding: 2px 2px 4px; cursor: pointer;
+  }
+  .vistas button + button { margin-left: 14px; }
+  .vistas button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); }
+  .vistas button:hover { color: var(--ink); }
+  .vistas button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .aviso { background: #fff3c4; border: 1px solid #f7c948; border-radius: 10px; padding: 10px 14px; margin: 0 0 16px; font-size: 13px; }
   .kpis.kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .chip-pct { display: inline-block; min-width: 58px; text-align: center; border-radius: 4px; padding: 2px 6px; }
   .ranking-com td { border-bottom: 1px solid var(--grid); }
@@ -216,6 +225,8 @@
     .marca { margin: -14px -16px 16px; padding: 10px 16px; }
     .logo { height: 34px; }
     h1 { font-size: 19px; }
+    .vistas button { font-size: 17px; }
+    .vistas button + button { margin-left: 4px; }
     .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .kpi.hero { grid-column: 1 / -1; }
     .kpi-valor { font-size: 21px; }
