@@ -97,8 +97,16 @@
     $('c-graficos').hidden = false;
 
     // Mes elegido arriba; si el archivo todavía no lo tiene, el último disponible.
-    var mes = f.mes && d.meses.indexOf(f.mes) >= 0 ? f.mes : d.meses[d.meses.length - 1];
-    if (f.mes && f.mes !== mes) avisos.push('Todavía no hay datos comerciales de ' + mesLargo(f.mes) + ': el último archivo llega a ' + mesLargo(mes) + ', que es lo que se muestra.');
+    // Los archivos comerciales son a mes vencido. Si el mes elegido todavía no está, se muestra el
+    // último mes cerrado completo (con EERR); si no hay EERR, el último mes de cobros.
+    var e = d.eerr && !d.eerr.error ? d.eerr.total || {} : {};
+    var cerrados = d.meses.filter(function (m) { return e[m]; });
+    var ultimoCerrado = cerrados.length ? cerrados[cerrados.length - 1] : d.meses[d.meses.length - 1];
+    var mes = f.mes && d.meses.indexOf(f.mes) >= 0 ? f.mes : ultimoCerrado;
+    if (f.mes && f.mes !== mes) avisos.push('La información comercial es a mes vencido: todavía no hay datos de ' + mesLargo(f.mes) +
+      '. Se muestra ' + mesLargo(mes) + ', el último mes cerrado completo.');
+    else if (!e[mes] && cerrados.length) avisos.push(mesLargo(mes).charAt(0).toUpperCase() + mesLargo(mes).slice(1) +
+      ' todavía no está cerrado en el Reporte EERR: la cantidad de tickets son los cobros registrados.');
     if (f.grupo === 'todos' && !f.local && locales.some(function (l) { return d.equivalencias[l] == null; })) {
       avisos.push('"Todos" incluye ' + locales.filter(function (l) { return d.equivalencias[l] == null; }).join(', ') + ', que figura en el sistema de cobros pero no en Facturación. Las franquicias no están en este archivo.');
     }
