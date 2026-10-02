@@ -69,6 +69,17 @@
     return r;
   }
 
+  /**
+   * Cantidad de tickets como en el panel de Martín: ventas del Reporte EERR (sin IVA) ÷ ticket
+   * promedio sin IVA. clave = local de Facturación, o null para el total. Si ese mes todavía no
+   * está en el EERR, se usan los cobros registrados (est = false).
+   */
+  function tickets(mes, r, clave) {
+    var e = est.datos.eerr;
+    var ventas = e && !e.error ? (clave ? (e.porLocal[clave] || {})[mes] : (e.total || {})[mes]) : null;
+    return ventas && r.ticket ? { n: Math.round(ventas / r.ticket), est: true } : { n: r.ops, est: false };
+  }
+
   // ---------- Render ----------
   function render() {
     var d = est.datos, f = est.filtros || {};
@@ -97,6 +108,8 @@
     var i = d.meses.indexOf(mes);
     var a = agregado(mes, locales), p = i > 0 ? agregado(d.meses[i - 1], locales) : null;
     var mesAnt = i > 0 ? mesCorto(d.meses[i - 1]) : '';
+    var claveSel = f.local || null;
+    var ta = tickets(mes, a, claveSel), tp = p ? tickets(d.meses[i - 1], p, claveSel) : null;
     var delta = function (act, ant, fmt, subirEsMalo) {
       if (!p || act == null || ant == null) return '&nbsp;';
       var dif = act - ant;
@@ -106,7 +119,8 @@
     };
     var pts = function (v) { return nf1.format(v * 100) + ' pts'; };
     $('c-kpis').innerHTML = [
-      ['Cantidad de ventas · ' + mesCorto(mes), nf0.format(a.ops), delta(a.ops, p && p.ops, function (v) { return nf0.format(v); })],
+      ['Cantidad de tickets · ' + mesCorto(mes) + (ta.est ? '' : ' (cobros registrados)'), nf0.format(ta.n),
+        tp && tp.est !== ta.est ? 'sin comparación: ' + mesAnt + ' se calculó distinto' : delta(ta.n, tp && tp.n, function (v) { return nf0.format(v); })],
       ['Ticket promedio (sin IVA)', miles(a.ticket), delta(a.ticket, p && p.ticket, miles)],
       ['% de descuento', pct(a.pDesc), delta(a.pDesc, p && p.pDesc, pts, true)],
       ['Venta en 6 o más cuotas', pct(a.p6mas), delta(a.p6mas, p && p.p6mas, pts, true)]
@@ -134,7 +148,7 @@
         borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] }, options: base(fmtY) });
     };
     barras('c-ch-ticket', serie.map(function (s) { return s.ticket; }), miles);
-    barras('c-ch-ops', serie.map(function (s) { return s.ops; }), function (v) { return nf0.format(v); });
+    barras('c-ch-ops', serie.map(function (s, j) { return tickets(d.meses[j], s, claveSel).n; }), function (v) { return nf0.format(v); });
 
     var crit = css('--critical');
     dibujar('c-ch-desc', { type: 'line', data: { labels: etiquetas, datasets: [{ data: serie.map(function (s) { return s.pDesc; }),
@@ -153,7 +167,9 @@
     var nombre = f.local ? f.localNombre : (f.grupoTexto || 'locales propios');
     nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
     $('c-n-ticket').textContent = nombre + ' · venta neta ÷ 1,21 ÷ cantidad de ventas';
-    $('c-n-ops').textContent = nombre + ' · cobros con venta neta positiva';
+    var conEerr = d.meses.filter(function (m, j) { return tickets(m, serie[j], claveSel).est; });
+    $('c-n-ops').textContent = nombre + ' · ventas del Reporte EERR (sin IVA) ÷ ticket promedio, como el panel de Martín' +
+      (conEerr.length < d.meses.length ? '. Meses sin EERR todavía: se cuentan los cobros registrados.' : '.');
     $('c-n-desc').textContent = nombre + ' · descuento ÷ venta bruta (todos los cobros)';
 
     // Tabla: todos los locales del grupo, con el elegido resaltado.
@@ -164,16 +180,16 @@
     var filas = enTabla.map(function (l) { var x = agregado(mes, [l]); x.local = l; return x; })
       .filter(function (x) { return x.ops; }).sort(function (x, y) { return y.neto - x.neto; });
     var colorDesc = function (v) { return v == null ? 'transparent' : v >= 0.40 ? '#fde0de' : v >= 0.30 ? '#fff3c4' : '#dcf5ee'; };
-    var celdas = function (x) {
-      return '<td>' + miles(x.ticket) + '</td><td>' + nf0.format(x.ops) + '</td><td><span class="chip-pct" style="background:' +
+    var celdas = function (x, clave) {
+      return '<td>' + miles(x.ticket) + '</td><td>' + nf0.format(tickets(mes, x, clave).n) + '</td><td><span class="chip-pct" style="background:' +
         colorDesc(x.pDesc) + '">' + pct(x.pDesc) + '</span></td>' +
         d.cuotas.slice(0, 4).map(function (c) { return '<td>' + pct(x.pCuotas[c]) + '</td>'; }).join('');
     };
-    $('c-tabla').innerHTML = '<thead><tr><th class="izq">Local</th><th>Ticket prom.</th><th>Ventas</th><th>% Desc.</th>' +
+    $('c-tabla').innerHTML = '<thead><tr><th class="izq">Local</th><th>Ticket prom.</th><th>Tickets</th><th>% Desc.</th>' +
       d.cuotas.slice(0, 4).map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' +
       filas.map(function (x) {
-        return '<tr' + (f.local && d.equivalencias[x.local] === f.local ? ' class="sel"' : '') + '><td class="izq">' + esc(nombreDe(x.local)) + '</td>' + celdas(x) + '</tr>';
-      }).join('') + '</tbody><tfoot><tr><td class="izq">Total</td>' + celdas(agregado(mes, enTabla)) + '</tr></tfoot>';
+        return '<tr' + (f.local && d.equivalencias[x.local] === f.local ? ' class="sel"' : '') + '><td class="izq">' + esc(nombreDe(x.local)) + '</td>' + celdas(x, d.equivalencias[x.local] || '-') + '</tr>';
+      }).join('') + '</tbody><tfoot><tr><td class="izq">Total</td>' + celdas(agregado(mes, enTabla), null) + '</tr></tfoot>';
     $('c-n-tabla').textContent = mesLargo(mes).charAt(0).toUpperCase() + mesLargo(mes).slice(1) +
       ' · ordenado por venta · % Desc.: verde menos de 30%, amarillo 30–40%, rojo 40% o más';
   }

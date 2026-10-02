@@ -14,6 +14,7 @@
 // Carpeta de Drive con los Excel comerciales.
 var CARPETA_COMERCIAL_ID = '1rqvtYLmOmLqtuvovHk4jIZJIZVhg3TpB';
 var PATRON_DESCUENTOS = /^descuentos por locales.*\.xlsx$/i;
+var PATRON_EERR = /^reporte eerr.*\.xlsx$/i;
 
 function getComercial() {
   // Google permite autorizar los permisos por separado: si quien abre el tablero no
@@ -38,42 +39,121 @@ function getComercial() {
     return JSON.stringify({ sinAcceso: true, detalle: msg });
   }
 
-  var archivo = null;
+  var archivos = [];
   var it = carpeta.getFiles();
-  while (it.hasNext()) {
-    var f = it.next();
-    if (PATRON_DESCUENTOS.test(f.getName()) && (!archivo || f.getLastUpdated() > archivo.getLastUpdated())) archivo = f;
-  }
+  while (it.hasNext()) archivos.push(it.next());
+  var masReciente = function (patron) {
+    return archivos.filter(function (f) { return patron.test(f.getName()); })
+      .sort(function (a, b) { return b.getLastUpdated() - a.getLastUpdated(); })[0] || null;
+  };
+  var archivo = masReciente(PATRON_DESCUENTOS);
   if (!archivo) throw new Error('No encontré ningún Excel "Descuentos por locales" en la carpeta.');
+  var eerr = masReciente(PATRON_EERR);
 
-  var clave = 'comercial2:' + archivo.getId() + ':' + archivo.getLastUpdated().getTime();
+  var firma = function (f) { return f ? f.getId() + ':' + f.getLastUpdated().getTime() : '-'; };
+  var clave = 'comercial3:' + firma(archivo) + ':' + firma(eerr);
   var cache = CacheService.getScriptCache();
   var guardado = cache.get(clave);
   if (guardado) return guardado;
 
-  var partes = {};
-  Utilities.unzip(archivo.getBlob().setContentType('application/zip')).forEach(function (b) {
-    partes[b.getName()] = b;
-  });
-  var texto = function (nombre) { return partes[nombre] ? partes[nombre].getDataAsString('UTF-8') : ''; };
-
-  var compartidos = leerSharedStrings(texto('xl/sharedStrings.xml'));
+  var libro = descomprimir(archivo);
+  var compartidos = leerSharedStrings(libro.texto('xl/sharedStrings.xml'));
   var filas = null;
-  Object.keys(partes).filter(function (n) { return /^xl\/worksheets\/sheet\d+\.xml$/.test(n); })
-    .sort(function (a, b) { return partes[b].getBytes().length - partes[a].getBytes().length; })
-    .some(function (n) {
-      var f = leerHojaXlsx(texto(n), compartidos);
-      if (f.length && encontrarColumnas(f[0])) { filas = f; return true; }
-      return false;
-    });
+  libro.hojas.slice().sort(function (a, b) { return b.tamanio - a.tamanio; }).some(function (h) {
+    var f = leerHojaXlsx(libro.texto(h.ruta), compartidos);
+    if (f.length && encontrarColumnas(f[0])) { filas = f; return true; }
+    return false;
+  });
   if (!filas) throw new Error('El Excel "' + archivo.getName() + '" no tiene la hoja de detalle esperada (Fecha de Pago, Establecimiento, V. Bruto…).');
 
   var resultado = agregarCobros(filas);
   resultado.archivo = archivo.getName();
   resultado.actualizadoArchivo = Utilities.formatDate(archivo.getLastUpdated(), 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd HH:mm');
+
+  // Ventas del Reporte EERR (sin IVA): con ellas se estiman los tickets como en el panel de Martín
+  // (ventas ÷ ticket promedio). Si falta el archivo o no se puede leer, quedan los cobros contados.
+  if (eerr) {
+    try {
+      var libroEerr = descomprimir(eerr);
+      var textos = leerSharedStrings(libroEerr.texto('xl/sharedStrings.xml'));
+      var hojas = {};
+      libroEerr.hojas.forEach(function (h) { hojas[h.nombre] = leerHojaXlsx(libroEerr.texto(h.ruta), textos); });
+      resultado.eerr = armarEerr(hojas);
+      resultado.eerr.archivo = eerr.getName();
+    } catch (e) {
+      resultado.eerr = { error: String(e && e.message || e) };
+    }
+  }
+
   var json = JSON.stringify(resultado);
   try { cache.put(clave, json, 21600); } catch (e) { /* más de 100 KB: se recalcula la próxima vez */ }
   return json;
+}
+
+/** Descomprime un .xlsx de Drive. Devuelve { texto(ruta), hojas: [{ nombre, ruta, tamanio }] }. */
+function descomprimir(archivo) {
+  var partes = {};
+  Utilities.unzip(archivo.getBlob().setContentType('application/zip')).forEach(function (b) { partes[b.getName()] = b; });
+  var texto = function (ruta) { return partes[ruta] ? partes[ruta].getDataAsString('UTF-8') : ''; };
+  var hojas = hojasDelLibro(texto('xl/workbook.xml'), texto('xl/_rels/workbook.xml.rels'));
+  hojas.forEach(function (h) { h.tamanio = partes[h.ruta] ? partes[h.ruta].getBytes().length : 0; });
+  return { texto: texto, hojas: hojas.filter(function (h) { return partes[h.ruta]; }) };
+}
+
+/** workbook.xml + sus relaciones -> [{ nombre de la pestaña, ruta del .xml }]. */
+function hojasDelLibro(workbookXml, relsXml) {
+  var destino = {}, m;
+  var reRel = /<Relationship\s[^>]*>/g;
+  while ((m = reRel.exec(relsXml))) {
+    var id = (m[0].match(/\sId="([^"]+)"/) || [])[1], target = (m[0].match(/\sTarget="([^"]+)"/) || [])[1];
+    if (id && target) destino[id] = 'xl/' + target.replace(/^\/?xl\//, '').replace(/^\//, '');
+  }
+  var hojas = [], reHoja = /<sheet\s[^>]*>/g;
+  while ((m = reHoja.exec(workbookXml))) {
+    var nombre = (m[0].match(/\sname="([^"]+)"/) || [])[1], rid = (m[0].match(/\sr:id="([^"]+)"/) || [])[1];
+    if (nombre && destino[rid]) hojas.push({ nombre: desescapar(nombre), ruta: destino[rid] });
+  }
+  return hojas;
+}
+
+/**
+ * Pestañas del Reporte EERR -> { total: { mes: ventas }, porLocal: { clave: { mes: ventas } } }.
+ * "EERR" es el consolidado; las pestañas con nombre de local (Juramento, Caballito, Ecom…) se cruzan
+ * con Facturación. En cada una se toma la primera fila "Ventas" debajo de la fila de meses.
+ */
+function armarEerr(hojas) {
+  var res = { total: {}, porLocal: {} };
+  Object.keys(hojas).forEach(function (nombre) {
+    var ventas = ventasDeHojaEerr(hojas[nombre]);
+    if (!ventas) return;
+    if (/^eerr$/i.test(nombre.trim())) { res.total = ventas; return; }
+    var clave = claveFacturacion(nombre);
+    if (clave) res.porLocal[clave] = ventas;
+  });
+  return res;
+}
+
+function ventasDeHojaEerr(filas) {
+  var meses = null;
+  for (var r = 0; r < Math.min(filas.length, 30); r++) {
+    var fila = filas[r] || [];
+    if (!meses) {
+      var m = {}, n = 0;
+      for (var c = 2; c < fila.length; c++) {
+        if (typeof fila[c] === 'number' && fila[c] > 40000 && fila[c] < 60000) { m[c] = mesDeFecha(fila[c]); n++; }
+      }
+      if (n >= 3) meses = m;
+      continue;
+    }
+    if (/^ventas$/i.test(String(fila[1] || '').trim())) {
+      var ventas = {}, alguno = false;
+      Object.keys(meses).forEach(function (c) {
+        if (typeof fila[c] === 'number' && fila[c] !== 0) { ventas[meses[c]] = Math.round(fila[c]); alguno = true; }
+      });
+      if (alguno) return ventas;
+    }
+  }
+  return null;
 }
 
 /** sharedStrings.xml -> array de textos (con <r> enriquecidos unidos). */
@@ -223,5 +303,6 @@ function claveFacturacion(nombre) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { leerSharedStrings: leerSharedStrings, leerHojaXlsx: leerHojaXlsx, agregarCobros: agregarCobros };
+  module.exports = { leerSharedStrings: leerSharedStrings, leerHojaXlsx: leerHojaXlsx, agregarCobros: agregarCobros,
+    hojasDelLibro: hojasDelLibro, armarEerr: armarEerr };
 }
