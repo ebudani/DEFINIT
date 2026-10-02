@@ -464,7 +464,7 @@
     var objetivo = vsSuper ? 'Súper' : 'Meta';
     $('titulo-mapa').textContent = 'Cumplimiento de ' + objetivo + ' por local y mes';
     $('nota-mapa').innerHTML = 'Venta ÷ ' + objetivo + (vsSuper ? ' (la planilla da el mes por cumplido ✅ al llegar al Súper)' : '') +
-      '. En el mes en curso se muestra el cumplimiento <strong>proyectado</strong> al cierre.';
+      '. En el mes en curso se muestra lo <strong>real a la fecha</strong> (la proyección al cierre aparece al pasar el mouse).';
     var calc = d.meses.map(function (m) { return calcularMes(m.mes); });
     var ultimo = calc[calc.length - 1];
     var orden = {};
@@ -476,19 +476,20 @@
     calc = calc.slice().reverse();
 
     var html = '<thead><tr><th class="izq" scope="col">Local</th>' + calc.map(function (c) {
-      return '<th scope="col"' + (c.abierto ? ' class="en-curso"' : '') + '>' + nombreMes(c.mes, true) + (c.abierto ? ' · proy.' : '') + '</th>';
+      return '<th scope="col"' + (c.abierto ? ' class="en-curso"' : '') + '>' + nombreMes(c.mes, true) + (c.abierto ? ' · en curso' : '') + '</th>';
     }).join('') + '</tr></thead><tbody>';
     claves.forEach(function (k) {
       html += '<tr><td class="izq">' + esc(locales[k]) + '</td>';
       calc.forEach(function (c) {
         var f = c.filas.filter(function (x) { return x.clave === k; })[0];
         var base = f ? (vsSuper ? f.super : f.meta) : 0;
-        var v = base ? (c.abierto ? f.proy : f.venta) / base : null;
+        var v = base ? f.venta / base : null;
         if (v == null) { html += '<td class="celda">–</td>'; return; }
         var col = colorCelda(v);
         html += '<td class="celda" style="background:' + col.fondo + ';color:' + col.texto + '" data-tip="' +
           esc('<strong>' + locales[k] + ' · ' + nombreMes(c.mes) + '</strong>Venta ' + millones(f.venta) + ' · ' + objetivo + ' ' + millones(base) +
-            (c.abierto ? '<br>Proyectado ' + millones(f.proy) + ' (' + pct(v) + ' de' + (vsSuper ? 'l Súper' : ' la Meta') + ')'
+            (c.abierto ? '<br>Real a la fecha: ' + pct(v) + ' de' + (vsSuper ? 'l Súper' : ' la Meta') +
+              '<br>Proyectado al cierre: ' + millones(f.proy) + ' (' + pct(f.proy / base) + ')'
               : '<br>' + pct(f.pMeta) + ' de la Meta · ' + pct(f.pSuper) + ' del Súper')) +
           '">' + pct(v).replace(',0%', '%') + '</td>';
       });

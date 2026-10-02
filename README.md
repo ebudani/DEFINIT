@@ -147,7 +147,7 @@ y abrí `dev/index.html` en el navegador. `raw.json` e `index.html` quedan fuera
 | Proyección de cierre | Venta ÷ días transcurridos × días del mes (días corridos) |
 | Necesario/día p/ Súper | (Súper − Venta) ÷ días restantes del mes |
 | Participación | Venta del local ÷ venta del grupo |
-| Mapa semáforo | Venta ÷ Súper; en el mes en curso, proyección ÷ Súper. Verde ≥ 100%, amarillo 97–100%, naranja 90–97%, rojo < 90% |
+| Mapa semáforo | Venta ÷ Súper; en el mes en curso, lo real a la fecha. Verde ≥ 100%, amarillo 97–100%, naranja 90–97%, rojo < 90% |
 
 Todos los importes son nominales (sin ajustar por inflación).
 
