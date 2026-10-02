@@ -55,12 +55,17 @@ function procesar() {
     try {
       var hojas = SpreadsheetApp.openById(temporal).getSheets();
       diagnosticar(libro, fuente.id, archivo, hojas);
-      var filas = fuente.procesar(hojas);
-      escribir(libro, fuente.id, filas);
+      // Cada fuente devuelve una tabla, o varias como { pestaña: filas }.
+      var tablas = fuente.procesar(hojas);
+      if (Array.isArray(tablas)) { var una = {}; una[fuente.id] = tablas; tablas = una; }
+      var resumen = Object.keys(tablas).map(function (nombre) {
+        escribir(libro, nombre, tablas[nombre]);
+        return nombre + ' ' + (tablas[nombre].length - 1);
+      });
       hechos[fuente.id] = firma;
       props.setProperty('procesados', JSON.stringify(hechos));
       info.push([fuente.id, archivo.getName(), fecha(archivo.getLastUpdated()),
-        'procesado ' + fecha(new Date()) + ' · ' + (filas.length - 1) + ' filas · ' + Math.round((Date.now() - inicio) / 1000) + ' s']);
+        'procesado ' + fecha(new Date()) + ' · filas: ' + resumen.join(', ') + ' · ' + Math.round((Date.now() - inicio) / 1000) + ' s']);
     } finally {
       Drive.Files.remove(temporal);
     }
@@ -251,12 +256,24 @@ function agregarCobros(t) {
 
 // ---------- Sesiones: "Venta_Items_Sesiones" ----------
 
-/** Por mes y local: sesiones y minutos vendidos (con y sin cortesía) y venta. No usa datos de clientes. */
+/**
+ * Venta de ítems y sesiones: totales por mes y local, y el análisis de clientes.
+ * Los nombres de clientes solo se usan acá para contar personas distintas y saber si ya habían
+ * comprado antes; a la base comercial (y al tablero) llegan únicamente cantidades.
+ */
 function procesarSesiones(hojas) {
   var t = tablaCon(hojas, { fecha: /^fecha de pago$/i, local: /^establecimiento$/i, item: /^[íi]tem$/i,
     sesiones: /^n[uú]mero de sesiones$/i, cortesia: /cortes[íi]a/i, bruto: /^v\.?\s*bruto$/i,
-    desc: /^v\.?\s*descuento$/i, neto: /^v\.?\s*neto$/i, minutos: /^minutos totales$/i });
-  return agregarSesiones(t);
+    desc: /^v\.?\s*descuento$/i, neto: /^v\.?\s*neto$/i, minutos: /^minutos totales$/i,
+    'cliente?': /^cliente$/i, 'paquete?': /^paquete$/i });
+  var tablas = { sesiones: agregarSesiones(t) };
+  if (t.col['cliente?']) {
+    var c = agregarClientes(t);
+    tablas.clientes = c.clientes;
+    tablas.paquetes = c.paquetes;
+    tablas.items = c.items;
+  }
+  return tablas;
 }
 
 function agregarSesiones(t) {
@@ -271,6 +288,62 @@ function agregarSesiones(t) {
       : { items: 1, sesiones: ses, minutos: min, bruto: num(c.bruto[i]), desc: num(c.desc[i]), neto: num(c.neto[i]) });
   }
   return aFilas(mapa, ['mes', 'local', 'items', 'sesiones', 'minutos', 'sesiones_cortesia', 'minutos_cortesia', 'bruto', 'desc', 'neto']);
+}
+
+/** Tipo de paquete a partir del nombre ("AXILAS MUJER - CORTESÍA 3 SESIONES", "BOZO MUJER MEDIO PAQUETE"…). */
+function tipoPaquete(nombre, cortesia) {
+  var p = String(nombre || '').toUpperCase();
+  if (cortesia || /CORTES[IÍ]A/.test(p)) return 'Cortesía';
+  if (/MEDIO\s+PAQUETE/.test(p)) return 'Medio paquete';
+  if (/PAQUETE/.test(p)) return 'Paquete completo';
+  if (/SESI[OÓ]N|SUELTA|INDIVIDUAL/.test(p)) return 'Sesión suelta';
+  if (/PROMO|COMBO|PACK/.test(p)) return 'Promo / combo';
+  return 'Otros';
+}
+
+/**
+ * Por mes y local (y "TOTAL" para la empresa): clientes distintos, nuevos (primera compra en el
+ * archivo) y recurrentes, ítems, sesiones, venta y clientes con cortesía. Además, el mix de paquetes
+ * y los ítems (zonas) por mes y local.
+ */
+function agregarClientes(t) {
+  var c = t.col, n = t.n;
+  var claveCliente = function (i) { return String(c['cliente?'][i] || '').trim().toUpperCase().replace(/\s+/g, ' '); };
+  var primerMes = {};
+  for (var i = 0; i < n; i++) {
+    var mes = mesDe(c.fecha[i]), cli = claveCliente(i);
+    if (!mes || !cli) continue;
+    if (!primerMes[cli] || mes < primerMes[cli]) primerMes[cli] = mes;
+  }
+  var grupos = {}, paquetes = {}, items = {};
+  for (i = 0; i < n; i++) {
+    mes = mesDe(c.fecha[i]); cli = claveCliente(i);
+    var local = nombreLocal(c.local[i]);
+    if (!mes || !local || !cli) continue;
+    var cortesia = c.cortesia[i] === true || /^(true|verdadero|s[ií]|1)$/i.test(String(c.cortesia[i]).trim());
+    var neto = cortesia ? 0 : num(c.neto[i]), ses = num(c.sesiones[i]);
+    [local, 'TOTAL'].forEach(function (l) {
+      var g = grupos[mes + '|' + l] = grupos[mes + '|' + l] || { clientes: {}, cortesia: {}, items: 0, sesiones: 0, neto: 0 };
+      g.clientes[cli] = true; g.items++; g.sesiones += ses; g.neto += neto;
+      if (cortesia) g.cortesia[cli] = true;
+    });
+    var tipo = tipoPaquete(c['paquete?'] ? c['paquete?'][i] : '', cortesia);
+    acumular(paquetes, mes + '|' + local + '|' + tipo, { items: 1, sesiones: ses, neto: neto });
+    var item = String(c.item[i] || '').trim().toUpperCase() || 'SIN ÍTEM';
+    acumular(items, mes + '|' + local + '|' + item, { items: 1, sesiones: ses, neto: neto });
+  }
+  var filas = [['mes', 'local', 'clientes', 'nuevos', 'recurrentes', 'clientes_cortesia', 'items', 'sesiones', 'neto']];
+  Object.keys(grupos).sort().forEach(function (k) {
+    var g = grupos[k], partes = k.split('|'), lista = Object.keys(g.clientes);
+    var nuevos = lista.filter(function (x) { return primerMes[x] === partes[0]; }).length;
+    filas.push([partes[0], partes[1], lista.length, nuevos, lista.length - nuevos, Object.keys(g.cortesia).length,
+      g.items, Math.round(g.sesiones), Math.round(g.neto)]);
+  });
+  return {
+    clientes: filas,
+    paquetes: aFilas(paquetes, ['mes', 'local', 'tipo', 'items', 'sesiones', 'neto']),
+    items: aFilas(items, ['mes', 'local', 'item', 'items', 'sesiones', 'neto'])
+  };
 }
 
 // ---------- Agenda: "Minutos x mes x sucursal" ----------
@@ -301,5 +374,6 @@ function agregarAgenda(t) {
 
 if (typeof module !== 'undefined') {
   module.exports = { agregarCobros: agregarCobros, agregarSesiones: agregarSesiones, agregarAgenda: agregarAgenda,
+    agregarClientes: agregarClientes, tipoPaquete: tipoPaquete,
     indices: indices, num: num, mesDe: mesDe };
 }
