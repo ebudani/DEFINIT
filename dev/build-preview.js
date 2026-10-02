@@ -14,6 +14,9 @@ const modelo = construirModelo(resumen, pestanas);
 // Datos comerciales de prueba (dev/comercial.json, generado con dev/dump_comercial.js).
 const rutaComercial = path.join(__dirname, 'comercial.json');
 const comercial = fs.existsSync(rutaComercial) ? fs.readFileSync(rutaComercial, 'utf8') : JSON.stringify({ sinAcceso: true });
+// Datos de clientes de prueba (dev/clientes.json: copia de la "Base comercial").
+const rutaClientes = path.join(__dirname, 'clientes.json');
+const clientes = fs.existsSync(rutaClientes) ? fs.readFileSync(rutaClientes, 'utf8') : JSON.stringify({ sinAcceso: true });
 
 const incluir = (nombre) => fs.readFileSync(path.join(raiz, 'src', nombre + '.html'), 'utf8');
 let html = incluir('Index').replace(/<\?!=\s*include\('(\w+)'\);?\s*\?>/g, (_, n) => incluir(n));
@@ -24,7 +27,8 @@ window.google = { script: { run: {
   withSuccessHandler(f) { this._ok = f; return this; },
   withFailureHandler(f) { this._err = f; return this; },
   getData() { const ok = this._ok; setTimeout(() => ok(${JSON.stringify(JSON.stringify(modelo))}), 150); },
-  getComercial() { const ok = this._ok; setTimeout(() => ok(${JSON.stringify(comercial)}), 150); }
+  getComercial() { const ok = this._ok; setTimeout(() => ok(${JSON.stringify(comercial)}), 150); },
+  getClientes() { const ok = this._ok; setTimeout(() => ok(${JSON.stringify(clientes)}), 150); }
 } } };
 </script>`;
 html = html.replace('</head>', mock + '\n</head>');

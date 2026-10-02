@@ -1,0 +1,229 @@
+<script>
+// Vista "Clientes": KPIs de clientes, paquetes e ítems por mes, con los filtros Mes / Grupo / Local
+// del tablero. Lee getClientes() (planilla "DEFINIT – Base comercial", sin nombres de clientes).
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var est = { datos: null, cargando: false, filtros: null };
+  var graficos = {};
+
+  var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var TIPOS = ['Medio paquete', 'Paquete completo', 'Sesión suelta', 'Promo / combo', 'Cortesía', 'Otros'];
+  var COLORES = ['#0000ff', '#2a78d6', '#1baf7a', '#eda100', '#e87ba4', '#b7b8c0'];
+  var nf1 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  var nf0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+  function miles(v) { return v == null || !isFinite(v) ? '–' : '$' + nf0.format(v / 1000) + ' mil'; }
+  function millones(v) { return '$' + nf1.format(v / 1e6) + ' M'; }
+  function pct(v) { return v == null || !isFinite(v) ? '–' : nf1.format(v * 100) + '%'; }
+  function mesCorto(m) { var n = MESES[+m.slice(5, 7) - 1].slice(0, 3); return n.charAt(0).toUpperCase() + n.slice(1); }
+  function mesLargo(m) { return MESES[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4); }
+  function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ---------- Vista ----------
+  $('tab-clientes').addEventListener('click', function () {
+    ['vista-ventas', 'vista-comercial', 'fuente', 'c-fuente'].forEach(function (id) { $(id).hidden = true; });
+    ['tab-ventas', 'tab-comercial'].forEach(function (id) { $(id).setAttribute('aria-selected', 'false'); });
+    $('tab-clientes').setAttribute('aria-selected', 'true');
+    $('vista-clientes').hidden = false;
+    $('cl-fuente').hidden = !est.datos;
+    if (!est.datos && !est.cargando) cargar(); else if (est.datos) render();
+  });
+  $('btn-actualizar').addEventListener('click', function () { if (!$('vista-clientes').hidden && !est.cargando) cargar(); });
+  document.addEventListener('definit:filtros', function (e) {
+    est.filtros = e.detail;
+    if (!$('vista-clientes').hidden && est.datos) render();
+  });
+
+  // ---------- Datos ----------
+  /** Filas de una tabla (sin encabezado) como objetos, solo del mes y locales pedidos. */
+  function filas(tabla, filtro) {
+    var t = est.datos[tabla], enc = t[0];
+    return t.slice(1).map(function (f) {
+      var o = {}; enc.forEach(function (c, i) { o[c] = f[i]; }); return o;
+    }).filter(filtro);
+  }
+
+  /** Qué filas de "local" corresponden al Grupo / Local elegidos. "TOTAL" = clientes distintos de toda la empresa. */
+  function seleccion() {
+    var d = est.datos, f = est.filtros || {};
+    if (f.local) {
+      var locales = Object.keys(d.equivalencias).filter(function (l) { return d.equivalencias[l] === f.local; });
+      return { locales: locales, total: false };
+    }
+    return { locales: ['TOTAL'], total: true };
+  }
+
+  function sumar(lista, campos) {
+    var r = {}; campos.forEach(function (c) { r[c] = 0; });
+    lista.forEach(function (x) { campos.forEach(function (c) { r[c] += +x[c] || 0; }); });
+    return r;
+  }
+
+  var CAMPOS = ['clientes', 'nuevos', 'recurrentes', 'clientes_cortesia', 'items', 'sesiones', 'neto'];
+  function resumenMes(mes, sel) {
+    var r = sumar(filas('clientes', function (x) { return x.mes === mes && sel.locales.indexOf(x.local) >= 0; }), CAMPOS);
+    r.gasto = r.clientes ? r.neto / 1.21 / r.clientes : null;
+    r.itemsPorCliente = r.clientes ? r.items / r.clientes : null;
+    r.sesionesPorCliente = r.clientes ? r.sesiones / r.clientes : null;
+    r.pNuevos = r.clientes ? r.nuevos / r.clientes : null;
+    r.pCortesia = r.clientes ? r.clientes_cortesia / r.clientes : null;
+    return r;
+  }
+
+  // ---------- Render ----------
+  function render() {
+    var d = est.datos, f = est.filtros || {};
+    var aviso = $('cl-aviso'), avisos = [];
+    if (f.grupo === 'franquicia') {
+      aviso.hidden = false;
+      aviso.textContent = 'El análisis de clientes está solo para los locales propios: el archivo de ventas por ítem no incluye a las franquicias. Elegí "Propios" o "Todos".';
+      $('cl-kpis').innerHTML = ''; $('cl-tabla').innerHTML = '';
+      return;
+    }
+    var sel = seleccion();
+    if (!sel.locales.length) {
+      aviso.hidden = false; aviso.textContent = 'No hay datos de clientes para ' + (f.localNombre || 'este local') + '.';
+      return;
+    }
+    var mes = f.mes && d.meses.indexOf(f.mes) >= 0 ? f.mes : d.meses[d.meses.length - 1];
+    if (f.mes && f.mes !== mes) avisos.push('La información de clientes es a mes vencido: todavía no hay datos de ' + mesLargo(f.mes) +
+      '. Se muestra ' + mesLargo(mes) + ', el último mes del archivo.');
+    if (mes === d.meses[0]) avisos.push('En ' + mesLargo(mes) + ' todos los clientes figuran como nuevos porque el archivo empieza ese mes.');
+    aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
+
+    var i = d.meses.indexOf(mes);
+    var a = resumenMes(mes, sel), p = i > 0 ? resumenMes(d.meses[i - 1], sel) : null;
+    var mesAnt = i > 0 ? mesCorto(d.meses[i - 1]) : '';
+    var delta = function (act, ant, fmt) {
+      if (!p || act == null || ant == null) return '&nbsp;';
+      var dif = act - ant;
+      if (Math.abs(dif) < 1e-9) return 'igual que ' + mesAnt;
+      return '<span style="color:' + (dif > 0 ? css('--good-text') : css('--critical-text')) + '">' + (dif > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dif)) + '</span> vs ' + mesAnt;
+    };
+    var dec = function (v) { return nf1.format(v); };
+    $('cl-kpis').innerHTML = [
+      ['Clientes · ' + mesCorto(mes), nf0.format(a.clientes), delta(a.clientes, p && p.clientes, function (v) { return nf0.format(v); })],
+      ['Nuevos / recurrentes', nf0.format(a.nuevos) + ' / ' + nf0.format(a.recurrentes), pct(a.pNuevos) + ' son nuevos'],
+      ['Gasto por cliente (sin IVA)', miles(a.gasto), delta(a.gasto, p && p.gasto, miles)],
+      ['Ítems / sesiones por cliente', dec(a.itemsPorCliente) + ' / ' + dec(a.sesionesPorCliente), pct(a.pCortesia) + ' se llevó una cortesía']
+    ].map(function (k, j) {
+      return '<div class="kpi' + (j === 0 ? ' hero' : '') + '"><div class="kpi-label">' + k[0] + '</div><div class="kpi-valor">' + k[1] +
+        '</div><div class="kpi-det">' + k[2] + '</div></div>';
+    }).join('');
+
+    var serie = d.meses.map(function (m) { return resumenMes(m, sel); });
+    var etiquetas = d.meses.map(mesCorto);
+    var base = function (fmtY) {
+      return {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: '#fff', titleColor: css('--ink'), bodyColor: css('--ink'),
+          borderColor: css('--axis'), borderWidth: 1, padding: 10, callbacks: { label: function (c) { return ' ' + (c.dataset.label ? c.dataset.label + ': ' : '') + fmtY(c.raw); } } } },
+        scales: { x: { grid: { display: false }, ticks: { color: css('--muted') } },
+          y: { beginAtZero: true, grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--muted'), callback: fmtY } } }
+      };
+    };
+    var dibujar = function (id, cfg) { if (graficos[id]) graficos[id].destroy(); graficos[id] = new Chart($(id), cfg); };
+    var entero = function (v) { return nf0.format(v); };
+
+    // Clientes: nuevos + recurrentes apilados
+    var opC = base(entero); opC.scales.x.stacked = true; opC.scales.y.stacked = true;
+    dibujar('cl-ch-clientes', { type: 'bar', data: { labels: etiquetas, datasets: [
+      { label: 'Nuevos', data: serie.map(function (s) { return s.nuevos; }), backgroundColor: '#0000ff', maxBarThickness: 26, borderColor: '#fff', borderWidth: { top: 2 } },
+      { label: 'Recurrentes', data: serie.map(function (s) { return s.recurrentes; }), backgroundColor: '#9999ff', maxBarThickness: 26, borderRadius: { topLeft: 4, topRight: 4 } }
+    ] }, options: opC });
+    $('cl-l-clientes').innerHTML = '<span><i class="caja" style="background:#0000ff"></i>Nuevos (primera compra)</span>' +
+      '<span><i class="caja" style="background:#9999ff"></i>Recurrentes (ya habían comprado)</span>';
+
+    dibujar('cl-ch-gasto', { type: 'bar', data: { labels: etiquetas, datasets: [{ data: serie.map(function (s) { return s.gasto; }),
+      backgroundColor: d.meses.map(function (m) { return m === mes ? '#0000ff' : '#9999ff'; }), maxBarThickness: 24,
+      borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] }, options: base(miles) });
+
+    // Mix de paquetes (% de ítems) por mes
+    var paq = filas('paquetes', function (x) { return sel.total ? x.local !== 'TOTAL' : sel.locales.indexOf(x.local) >= 0; });
+    var porMes = {};
+    paq.forEach(function (x) { var o = porMes[x.mes] = porMes[x.mes] || {}; o[x.tipo] = (o[x.tipo] || 0) + (+x.items || 0); });
+    var tipos = TIPOS.filter(function (t) { return paq.some(function (x) { return x.tipo === t; }); });
+    var opP = base(pct); opP.plugins.legend = { display: true, position: 'bottom', labels: { boxWidth: 12, color: css('--ink-2') } };
+    opP.scales.x.stacked = true; opP.scales.y.stacked = true; opP.scales.y.max = 1;
+    dibujar('cl-ch-paquetes', { type: 'bar', data: { labels: etiquetas, datasets: tipos.map(function (t) {
+      return { label: t, backgroundColor: COLORES[TIPOS.indexOf(t)], maxBarThickness: 28, borderColor: '#fff', borderWidth: { top: 2 },
+        data: d.meses.map(function (m) { var o = porMes[m] || {}, tot = 0; Object.keys(o).forEach(function (k) { tot += o[k]; }); return tot ? (o[t] || 0) / tot : 0; }) };
+    }) }, options: opP });
+
+    // Top 10 ítems del mes por venta
+    var its = {};
+    filas('items', function (x) { return x.mes === mes && (sel.total ? true : sel.locales.indexOf(x.local) >= 0); }).forEach(function (x) {
+      var o = its[x.item] = its[x.item] || { neto: 0, sesiones: 0, items: 0 };
+      o.neto += +x.neto || 0; o.sesiones += +x.sesiones || 0; o.items += +x.items || 0;
+    });
+    var top = Object.keys(its).map(function (k) { return { item: k, v: its[k] }; }).sort(function (x, y) { return y.v.neto - x.v.neto; }).slice(0, 10);
+    var opI = base(millones); opI.indexAxis = 'y';
+    opI.scales = { x: { beginAtZero: true, grid: { color: css('--grid') }, ticks: { color: css('--muted'), callback: millones } },
+      y: { grid: { display: false }, ticks: { color: css('--ink-2'), autoSkip: false } } };
+    opI.plugins.tooltip.callbacks.label = function (c) {
+      var o = top[c.dataIndex].v; return [' Venta: ' + millones(o.neto), ' ' + nf0.format(o.items) + ' ítems · ' + nf0.format(o.sesiones) + ' sesiones'];
+    };
+    dibujar('cl-ch-items', { type: 'bar', data: { labels: top.map(function (t) { return mayus(t.item.toLowerCase()); }),
+      datasets: [{ data: top.map(function (t) { return t.v.neto; }), backgroundColor: '#0000ff', maxBarThickness: 18, borderRadius: 3 }] }, options: opI });
+
+    var nombre = mayus(f.local ? f.localNombre : (f.grupoTexto || 'locales propios'));
+    $('cl-n-clientes').textContent = nombre + ' · personas distintas que compraron cada mes';
+    $('cl-n-gasto').textContent = nombre + ' · venta neta ÷ 1,21 ÷ clientes';
+    $('cl-n-items').textContent = nombre + ' · ' + mesLargo(mes) + ' · top 10 por venta neta (sin cortesías)';
+
+    // Tabla por local
+    var locs = Object.keys(d.equivalencias).filter(function (l) {
+      var k = d.equivalencias[l];
+      return l !== 'TOTAL' && (f.grupo === 'todos' || !f.clavesGrupo || (k != null && f.clavesGrupo.indexOf(k) >= 0));
+    });
+    var nombreDe = function (l) { var k = d.equivalencias[l]; return (k && f.nombres && f.nombres[k]) || l; };
+    var tabla = locs.map(function (l) { var r = resumenMes(mes, { locales: [l] }); r.local = l; return r; })
+      .filter(function (r) { return r.clientes; }).sort(function (x, y) { return y.clientes - x.clientes; });
+    var celdas = function (r) {
+      return '<td>' + nf0.format(r.clientes) + '</td><td>' + pct(r.pNuevos) + '</td><td>' + miles(r.gasto) + '</td><td>' +
+        nf1.format(r.itemsPorCliente || 0) + '</td><td>' + nf1.format(r.sesionesPorCliente || 0) + '</td><td>' + pct(r.pCortesia) + '</td>';
+    };
+    var tot = resumenMes(mes, { locales: ['TOTAL'] });
+    $('cl-tabla').innerHTML = '<thead><tr><th class="izq">Local</th><th>Clientes</th><th>% nuevos</th><th>Gasto/cliente</th>' +
+      '<th>Ítems/cliente</th><th>Sesiones/cliente</th><th>% con cortesía</th></tr></thead><tbody>' +
+      tabla.map(function (r) {
+        return '<tr' + (f.local && d.equivalencias[r.local] === f.local ? ' class="sel"' : '') + '><td class="izq">' + esc(nombreDe(r.local)) + '</td>' + celdas(r) + '</tr>';
+      }).join('') + '</tbody><tfoot><tr><td class="izq">Total empresa</td>' + celdas(tot) + '</tr></tfoot>';
+    $('cl-n-tabla').textContent = mayus(mesLargo(mes)) + ' · ordenado por clientes. El total cuenta cada persona una sola vez aunque haya comprado en varios locales.';
+  }
+
+  // ---------- Carga ----------
+  function cargar() {
+    est.cargando = true;
+    var estado = $('cl-estado');
+    estado.hidden = false; estado.className = 'estado'; estado.textContent = 'Leyendo la base comercial…';
+    google.script.run
+      .withSuccessHandler(function (json) {
+        est.cargando = false;
+        var d = JSON.parse(json);
+        if (d.sinAcceso) {
+          estado.className = 'estado error';
+          estado.textContent = 'Tu cuenta de Google no tiene acceso a la planilla "DEFINIT – Base comercial". Pedile acceso a quien administra el tablero.';
+          $('cl-contenido').hidden = true;
+          return;
+        }
+        est.datos = d;
+        $('cl-fuente').textContent = 'Fuente: ' + d.archivo + (d.actualizadoArchivo ? ' (actualizado ' + String(d.actualizadoArchivo).replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1') + ')' : '') +
+          ' · datos de ' + mesLargo(d.meses[0]) + ' a ' + mesLargo(d.meses[d.meses.length - 1]) + ' · sin datos personales: solo cantidades.';
+        $('cl-fuente').hidden = $('vista-clientes').hidden;
+        estado.hidden = true;
+        $('cl-contenido').hidden = false;
+        render();
+      })
+      .withFailureHandler(function (err) {
+        est.cargando = false;
+        estado.className = 'estado error';
+        estado.textContent = 'No se pudieron leer los datos de clientes: ' + (err && err.message ? err.message : err);
+      })
+      .getClientes();
+  }
+})();
+</script>

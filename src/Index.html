@@ -34,9 +34,11 @@
     <h1 class="vistas" role="tablist" aria-label="Vistas del tablero">
       <button type="button" role="tab" id="tab-ventas" aria-selected="true" aria-controls="vista-ventas">Tablero Mensual de Ventas</button>
       <button type="button" role="tab" id="tab-comercial" aria-selected="false" aria-controls="vista-comercial">Indicadores comerciales</button>
+      <button type="button" role="tab" id="tab-clientes" aria-selected="false" aria-controls="vista-clientes">Clientes</button>
     </h1>
     <p class="sub" id="fuente">Leyendo Facturación 2026…</p>
     <p class="sub" id="c-fuente" hidden></p>
+    <p class="sub" id="cl-fuente" hidden></p>
   </div>
 
   <nav class="filtros" aria-label="Filtros">
@@ -153,9 +155,32 @@
     </div>
   </div>
 
+  <div id="vista-clientes" role="tabpanel" aria-labelledby="tab-clientes" hidden>
+    <p class="estado" id="cl-estado">Cargando datos de clientes…</p>
+    <div id="cl-contenido" hidden>
+      <p class="aviso" id="cl-aviso" hidden></p>
+      <section class="kpis kpis-4" id="cl-kpis"></section>
+      <div class="grid-2">
+        <section class="panel"><div class="panel-head"><h2>Clientes por mes: nuevos y recurrentes</h2><p class="nota" id="cl-n-clientes"></p></div>
+          <div class="leyenda" id="cl-l-clientes"></div><div class="chart"><canvas id="cl-ch-clientes"></canvas></div></section>
+        <section class="panel"><div class="panel-head"><h2>Gasto por cliente (sin IVA)</h2><p class="nota" id="cl-n-gasto"></p></div>
+          <div class="chart"><canvas id="cl-ch-gasto"></canvas></div></section>
+        <section class="panel"><div class="panel-head"><h2>Mix de paquetes (% de los ítems vendidos)</h2><p class="nota">Medio paquete, paquete completo, cortesías y otros, por mes.</p></div>
+          <div class="chart"><canvas id="cl-ch-paquetes"></canvas></div></section>
+        <section class="panel"><div class="panel-head"><h2>Ítems más vendidos</h2><p class="nota" id="cl-n-items"></p></div>
+          <div class="chart chart-alto"><canvas id="cl-ch-items"></canvas></div></section>
+      </div>
+      <section class="panel">
+        <div class="panel-head"><h2>Por local</h2><p class="nota" id="cl-n-tabla"></p></div>
+        <div class="tabla-scroll"><table class="ranking-com" id="cl-tabla"></table></div>
+      </section>
+    </div>
+  </div>
+
   <div class="tooltip" id="tooltip" role="status" hidden></div>
 
   <?!= include('App'); ?>
   <?!= include('ComercialApp'); ?>
+  <?!= include('ClientesApp'); ?>
 </body>
 </html>

@@ -109,6 +109,8 @@ function escribir(libro, nombre, filas) {
   if (!filas.length) return;
   var ancho = filas.reduce(function (m, f) { return Math.max(m, f.length); }, 0);
   var datos = filas.map(function (f) { while (f.length < ancho) f.push(''); return f; });
+  // Primera columna como texto: si no, Sheets convierte "2026-01" en una fecha.
+  hoja.getRange(1, 1, datos.length, 1).setNumberFormat('@');
   hoja.getRange(1, 1, datos.length, ancho).setValues(datos);
   var sobra = libro.getSheetByName('Hoja 1') || libro.getSheetByName('Sheet1');
   if (sobra && libro.getSheets().length > 1) libro.deleteSheet(sobra);

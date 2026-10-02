@@ -3,6 +3,7 @@ dev/raw.json
 dev/index.html
 dev/maqueta*.html
 dev/comercial.json
+dev/clientes.json
 *.xlsx
 *.csv
 

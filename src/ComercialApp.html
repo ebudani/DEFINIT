@@ -22,6 +22,10 @@
 
   // ---------- Vistas ----------
   function mostrar(comercial) {
+    // La vista Clientes (ClientesApp) se oculta al pasar a Ventas o Comercial.
+    $('vista-clientes').hidden = true;
+    $('cl-fuente').hidden = true;
+    $('tab-clientes').setAttribute('aria-selected', 'false');
     $('vista-ventas').hidden = comercial;
     $('vista-comercial').hidden = !comercial;
     $('fuente').hidden = comercial;
