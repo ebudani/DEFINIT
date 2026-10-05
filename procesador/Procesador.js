@@ -15,6 +15,8 @@
 
 var CARPETA_ID = '1rqvtYLmOmLqtuvovHk4jIZJIZVhg3TpB';
 var NOMBRE_BASE = 'DEFINIT – Base comercial';
+// Subir este número cuando cambie lo que se calcula: fuerza a reprocesar los archivos.
+var VERSION_CALCULO = 2;
 
 // Qué archivo de la carpeta alimenta cada pestaña de la base.
 var FUENTES = [
@@ -45,7 +47,7 @@ function procesar() {
   FUENTES.forEach(function (fuente) {
     var archivo = masReciente(archivos, fuente.patron);
     if (!archivo) { info.push([fuente.id, '(no hay archivo en la carpeta)', '', '']); return; }
-    var firma = archivo.getId() + ':' + archivo.getLastUpdated().getTime();
+    var firma = archivo.getId() + ':' + archivo.getLastUpdated().getTime() + ':v' + VERSION_CALCULO;
     if (hechos[fuente.id] === firma) {
       info.push([fuente.id, archivo.getName(), fecha(archivo.getLastUpdated()), 'sin cambios']);
       return;
@@ -110,7 +112,7 @@ function escribir(libro, nombre, filas) {
   var ancho = filas.reduce(function (m, f) { return Math.max(m, f.length); }, 0);
   var datos = filas.map(function (f) { while (f.length < ancho) f.push(''); return f; });
   // Primera columna como texto: si no, Sheets convierte "2026-01" en una fecha.
-  hoja.getRange(1, 1, datos.length, 1).setNumberFormat('@');
+  hoja.getRange(1, 1, datos.length, Math.min(2, ancho)).setNumberFormat('@');
   hoja.getRange(1, 1, datos.length, ancho).setValues(datos);
   var sobra = libro.getSheetByName('Hoja 1') || libro.getSheetByName('Sheet1');
   if (sobra && libro.getSheets().length > 1) libro.deleteSheet(sobra);
@@ -318,12 +320,17 @@ function agregarClientes(t) {
     if (!primerMes[cli] || mes < primerMes[cli]) primerMes[cli] = mes;
   }
   var grupos = {}, paquetes = {}, items = {};
+  var porCliente = {}; // cliente -> local -> mes -> { dias, items, sesiones, neto, cortesia }
   for (i = 0; i < n; i++) {
     mes = mesDe(c.fecha[i]); cli = claveCliente(i);
     var local = nombreLocal(c.local[i]);
     if (!mes || !local || !cli) continue;
     var cortesia = c.cortesia[i] === true || /^(true|verdadero|s[ií]|1)$/i.test(String(c.cortesia[i]).trim());
     var neto = cortesia ? 0 : num(c.neto[i]), ses = num(c.sesiones[i]);
+    var pc = ((porCliente[cli] = porCliente[cli] || {})[local] = porCliente[cli][local] || {});
+    var pm = pc[mes] = pc[mes] || { dias: {}, items: 0, sesiones: 0, neto: 0, cortesia: false };
+    pm.dias[diaDe(c.fecha[i]) || mes] = true; pm.items++; pm.sesiones += ses; pm.neto += neto;
+    if (cortesia) pm.cortesia = true;
     [local, 'TOTAL'].forEach(function (l) {
       var g = grupos[mes + '|' + l] = grupos[mes + '|' + l] || { clientes: {}, cortesia: {}, items: 0, sesiones: 0, neto: 0 };
       g.clientes[cli] = true; g.items++; g.sesiones += ses; g.neto += neto;
@@ -343,9 +350,71 @@ function agregarClientes(t) {
   });
   return {
     clientes: filas,
+    clientes_periodo: clientesPorPeriodo(porCliente, primerMes),
     paquetes: aFilas(paquetes, ['mes', 'local', 'tipo', 'items', 'sesiones', 'neto']),
     items: aFilas(items, ['mes', 'local', 'item', 'items', 'sesiones', 'neto'])
   };
+}
+
+/** Fecha de una celda -> 'YYYY-MM-DD' (para contar en cuántos días distintos compró un cliente). */
+function diaDe(v) {
+  if (v instanceof Date) return v.getFullYear() + '-' + ('0' + (v.getMonth() + 1)).slice(-2) + '-' + ('0' + v.getDate()).slice(-2);
+  var m = String(v || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+  m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[0] : null;
+}
+
+/**
+ * Para cada combinación Desde/Hasta de meses, por local y "TOTAL": personas distintas que compraron,
+ * nuevas (primera compra dentro del período) o que ya eran clientes, las que compraron en 2 o más días
+ * distintos del período (repiten), con cortesía, y los ítems, sesiones y venta. Los clientes no se pueden
+ * sumar mes a mes (alguien que compró en marzo y en mayo es una sola persona): por eso se calcula acá.
+ */
+function clientesPorPeriodo(porCliente, primerMes) {
+  var meses = {};
+  Object.keys(porCliente).forEach(function (cli) {
+    Object.keys(porCliente[cli]).forEach(function (l) { Object.keys(porCliente[cli][l]).forEach(function (m) { meses[m] = true; }); });
+  });
+  meses = Object.keys(meses).sort();
+  var filas = [['desde', 'hasta', 'local', 'clientes', 'nuevos', 'previos', 'repiten', 'clientes_cortesia', 'items', 'sesiones', 'neto']];
+  for (var a = 0; a < meses.length; a++) {
+    for (var b = a; b < meses.length; b++) {
+      var desde = meses[a], hasta = meses[b], grupos = {};
+      Object.keys(porCliente).forEach(function (cli) {
+        var total = { dias: {}, items: 0, sesiones: 0, neto: 0, cortesia: false, compro: false };
+        Object.keys(porCliente[cli]).forEach(function (l) {
+          var x = { dias: {}, items: 0, sesiones: 0, neto: 0, cortesia: false, compro: false };
+          Object.keys(porCliente[cli][l]).forEach(function (m) {
+            if (m < desde || m > hasta) return;
+            var pm = porCliente[cli][l][m];
+            [x, total].forEach(function (o) {
+              Object.keys(pm.dias).forEach(function (dia) { o.dias[dia] = true; });
+              o.items += pm.items; o.sesiones += pm.sesiones; o.neto += pm.neto;
+              o.cortesia = o.cortesia || pm.cortesia; o.compro = true;
+            });
+          });
+          if (x.compro) sumarCliente(grupos, l, x, primerMes[cli] >= desde);
+        });
+        if (total.compro) sumarCliente(grupos, 'TOTAL', total, primerMes[cli] >= desde);
+      });
+      Object.keys(grupos).sort().forEach(function (l) {
+        var g = grupos[l];
+        filas.push([desde, hasta, l, g.clientes, g.nuevos, g.clientes - g.nuevos, g.repiten, g.cortesia,
+          g.items, Math.round(g.sesiones), Math.round(g.neto)]);
+      });
+    }
+  }
+  return filas;
+}
+
+function sumarCliente(grupos, local, x, nuevo) {
+  var g = grupos[local] = grupos[local] || { clientes: 0, nuevos: 0, repiten: 0, cortesia: 0, items: 0, sesiones: 0, neto: 0 };
+  g.clientes++;
+  if (nuevo) g.nuevos++;
+  if (Object.keys(x.dias).length >= 2) g.repiten++;
+  if (x.cortesia) g.cortesia++;
+  g.items += x.items; g.sesiones += x.sesiones; g.neto += x.neto;
 }
 
 // ---------- Agenda: "Minutos x mes x sucursal" ----------
@@ -376,6 +445,6 @@ function agregarAgenda(t) {
 
 if (typeof module !== 'undefined') {
   module.exports = { agregarCobros: agregarCobros, agregarSesiones: agregarSesiones, agregarAgenda: agregarAgenda,
-    agregarClientes: agregarClientes, tipoPaquete: tipoPaquete,
+    agregarClientes: agregarClientes, tipoPaquete: tipoPaquete, clientesPorPeriodo: clientesPorPeriodo,
     indices: indices, num: num, mesDe: mesDe };
 }
