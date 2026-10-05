@@ -1,0 +1,77 @@
+<dialog id="guia" class="guia" aria-labelledby="guia-titulo">
+  <div class="guia-cabecera">
+    <h2 id="guia-titulo">¿Cómo leer este tablero?</h2>
+    <button type="button" class="guia-cerrar" id="guia-cerrar" aria-label="Cerrar">×</button>
+  </div>
+  <div class="guia-cuerpo">
+    <p>El tablero tiene tres vistas, que se eligen con los botones de arriba, y comparten los mismos filtros.</p>
+
+    <h3>Filtros</h3>
+    <table>
+      <thead><tr><th>Filtro</th><th>Qué hace</th></tr></thead>
+      <tbody>
+        <tr><td>Desde / Hasta</td><td>Un mes (los dos iguales) o un período acumulado, por ejemplo enero a septiembre.</td></tr>
+        <tr><td>Grupo</td><td>Propios (incluye Ecommerce), Franquicias o Todos.</td></tr>
+        <tr><td>Local</td><td>El total del grupo o un local en particular.</td></tr>
+      </tbody>
+    </table>
+    <p class="nota">El botón <strong>Actualizar</strong> vuelve a leer los datos sin recargar la página.</p>
+
+    <h3>Tablero Mensual de Ventas</h3>
+    <p>Venta, cumplimiento y ritmo de cada local, leídos en vivo de la planilla <em>Facturación 2026</em>.</p>
+    <ul>
+      <li><strong>Indicadores:</strong> venta del mes o del período, % de Meta, % de Súper, proyección de cierre (si incluye el mes en curso) y locales en Meta.</li>
+      <li><strong>Ranking de locales:</strong> venta, participación, % Meta, % Súper, proyección, venta necesaria por día para llegar al Súper y estado. Amarillo = en camino, rojo = en riesgo.</li>
+      <li><strong>Ritmo del mes:</strong> venta acumulada día a día contra Meta, Súper y proyección, del mes "Hasta".</li>
+      <li><strong>Venta diaria:</strong> barras por día de todo el período elegido.</li>
+      <li><strong>Evolución mensual:</strong> venta contra Meta de cada mes, con el período elegido resaltado.</li>
+      <li><strong>Evolución por semanas:</strong> semanas de lunes a domingo y su variación contra la anterior. La semana en curso se compara contra los mismos días de la semana anterior.</li>
+      <li><strong>Cumplimiento por local y mes:</strong> semáforo contra Súper o Meta (se elige arriba del cuadro). El mes en curso muestra lo real a la fecha.</li>
+    </ul>
+
+    <h3>Indicadores comerciales</h3>
+    <p>Información a <strong>mes vencido</strong> de los archivos del cierre mensual (descuentos y estado de resultados). Usa el mes "Hasta"; si ese mes todavía no tiene datos, muestra el último mes cerrado y lo avisa.</p>
+    <ul>
+      <li><strong>Cantidad de tickets:</strong> ventas del estado de resultados (sin IVA) ÷ ticket promedio. En los meses que todavía no están cerrados, se cuentan los cobros registrados.</li>
+      <li><strong>Ticket promedio (sin IVA):</strong> venta neta ÷ 1,21 ÷ cantidad de cobros.</li>
+      <li><strong>% de descuento:</strong> descuento ÷ venta bruta.</li>
+      <li><strong>Cuotas:</strong> % de la venta en 1, 3, 6 y 12 cuotas.</li>
+      <li><strong>Tabla por local:</strong> los mismos indicadores por local. % de descuento: verde menos de 30%, amarillo 30–40%, rojo 40% o más.</li>
+    </ul>
+
+    <h3>Clientes</h3>
+    <p>Cuántas personas compran, cuántas vuelven y cuánto gastan. Información a <strong>mes vencido</strong>, sin nombres de clientes: solo cantidades.</p>
+    <ul>
+      <li><strong>Clientes:</strong> personas distintas que compraron en el mes o período. En un período cada persona cuenta una sola vez, aunque haya comprado en varios meses o locales.</li>
+      <li><strong>Nuevos / ya eran clientes:</strong> primera compra dentro del período vs. clientes que ya habían comprado antes. Por ahora se mide desde enero 2026.</li>
+      <li><strong>Clientes que repiten:</strong> % que compró en 2 o más días distintos del período.</li>
+      <li><strong>Gasto por cliente (sin IVA):</strong> venta neta ÷ 1,21 ÷ clientes.</li>
+      <li><strong>Ítems y sesiones por cliente</strong>, y % que se llevó una cortesía.</li>
+      <li><strong>Gráficos:</strong> clientes por mes (nuevos y recurrentes), gasto por cliente, mix de paquetes y los 10 ítems más vendidos del período.</li>
+    </ul>
+
+    <h3>Acceso</h3>
+    <p>Cada persona ve solo lo que su cuenta de Google puede abrir. El tablero solo <strong>lee</strong> los datos: no modifica nada.</p>
+    <table>
+      <thead><tr><th>Vista</th><th>Hace falta acceso a</th></tr></thead>
+      <tbody>
+        <tr><td>Tablero Mensual de Ventas</td><td>La planilla Facturación 2026</td></tr>
+        <tr><td>Indicadores comerciales</td><td>La carpeta con los archivos del cierre mensual</td></tr>
+        <tr><td>Clientes</td><td>La planilla "DEFINIT – Base comercial"</td></tr>
+      </tbody>
+    </table>
+    <p class="nota">La primera vez, Google pide autorizar el tablero. Si aparece "app no verificada", tocar <em>Configuración avanzada → Ir a DEFINIT – Tablero Mensual de Ventas</em> y marcar todos los permisos. También funciona desde el celular.</p>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  var guia = document.getElementById('guia');
+  document.getElementById('btn-guia').addEventListener('click', function () {
+    if (guia.showModal) guia.showModal(); else guia.setAttribute('open', '');
+  });
+  document.getElementById('guia-cerrar').addEventListener('click', function () { guia.close ? guia.close() : guia.removeAttribute('open'); });
+  // Cerrar tocando fuera del panel.
+  guia.addEventListener('click', function (e) { if (e.target === guia && guia.close) guia.close(); });
+})();
+</script>

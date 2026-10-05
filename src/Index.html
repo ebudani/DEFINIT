@@ -28,7 +28,10 @@
             </g>
           </svg>
     </a>
-    <button type="button" id="btn-actualizar" class="btn">Actualizar</button>
+    <div class="marca-botones">
+      <button type="button" id="btn-guia" class="btn btn-sec" aria-label="¿Cómo leer este tablero?"><span class="solo-pc">¿Cómo leer este tablero?</span><span class="solo-cel">Guía</span></button>
+      <button type="button" id="btn-actualizar" class="btn">Actualizar</button>
+    </div>
   </header>
   <div class="titulo">
     <h1 class="vistas" role="tablist" aria-label="Vistas del tablero">
@@ -186,5 +189,6 @@
   <?!= include('App'); ?>
   <?!= include('ComercialApp'); ?>
   <?!= include('ClientesApp'); ?>
+  <?!= include('Guia'); ?>
 </body>
 </html>
