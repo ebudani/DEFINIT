@@ -139,8 +139,8 @@
     $('cl-kpis').innerHTML = [
       ['Clientes · ' + textoPeriodo, nf0.format(a.clientes), delta(a.clientes, p && p.clientes, function (v) { return nf0.format(v); })],
       ['Nuevos / ya eran clientes', nf0.format(a.nuevos) + ' / ' + nf0.format(a.previos), pct(a.pNuevos) + ' son nuevos'],
-      ['Clientes que repiten', pct(a.pRepiten), a.repiten == null ? '&nbsp;' : nf0.format(a.repiten) + ' compraron en 2 o más días · ' +
-        delta(a.pRepiten, p && p.pRepiten, pts).replace('&nbsp;', '')],
+      ['Clientes que repiten', pct(a.pRepiten), a.repiten == null ? '&nbsp;' : nf0.format(a.repiten) + ' compraron en 2 o más días' +
+        (p && p.pRepiten != null ? ' · ' + delta(a.pRepiten, p.pRepiten, pts) : '')],
       ['Gasto por cliente (sin IVA)', miles(a.gasto), delta(a.gasto, p && p.gasto, miles)],
       ['Ítems / sesiones por cliente', dec(a.itemsPorCliente) + ' / ' + dec(a.sesionesPorCliente), pct(a.pCortesia) + ' se llevó una cortesía']
     ].map(function (k, j) {
