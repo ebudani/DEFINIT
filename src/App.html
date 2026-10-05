@@ -137,7 +137,7 @@
   function avisarFiltros(c) {
     var sel = c.filas.filter(function (f) { return f.clave === estado.local; })[0];
     document.dispatchEvent(new CustomEvent('definit:filtros', { detail: {
-      mes: estado.mes, grupo: estado.grupo, local: estado.local, localNombre: sel ? sel.nombre : '',
+      mes: estado.mes, desde: estado.desde || estado.mes, grupo: estado.grupo, local: estado.local, localNombre: sel ? sel.nombre : '',
       grupoTexto: grupoTexto(), clavesGrupo: c.filas.map(function (f) { return f.clave; }),
       nombres: c.filas.reduce(function (o, f) { o[f.clave] = f.nombre; return o; }, {})
     } }));

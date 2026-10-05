@@ -1,6 +1,8 @@
 <script>
-// Vista "Clientes": KPIs de clientes, paquetes e ítems por mes, con los filtros Mes / Grupo / Local
+// Vista "Clientes": KPIs de clientes, paquetes e ítems con los filtros Desde / Hasta / Grupo / Local
 // del tablero. Lee getClientes() (planilla "DEFINIT – Base comercial", sin nombres de clientes).
+// Los clientes de un período son personas distintas (no la suma de los meses): vienen calculados
+// por el procesador para cada combinación Desde/Hasta.
 (function () {
   'use strict';
 
@@ -38,38 +40,53 @@
   });
 
   // ---------- Datos ----------
-  /** Filas de una tabla (sin encabezado) como objetos, solo del mes y locales pedidos. */
   function filas(tabla, filtro) {
-    var t = est.datos[tabla], enc = t[0];
+    var t = est.datos[tabla] || [[]], enc = t[0];
     return t.slice(1).map(function (f) {
       var o = {}; enc.forEach(function (c, i) { o[c] = f[i]; }); return o;
     }).filter(filtro);
   }
 
-  /** Qué filas de "local" corresponden al Grupo / Local elegidos. "TOTAL" = clientes distintos de toda la empresa. */
+  /** Filas "local" del archivo que corresponden al Local elegido; sin local, "TOTAL" (personas distintas de toda la empresa). */
   function seleccion() {
     var d = est.datos, f = est.filtros || {};
-    if (f.local) {
-      var locales = Object.keys(d.equivalencias).filter(function (l) { return d.equivalencias[l] === f.local; });
-      return { locales: locales, total: false };
-    }
-    return { locales: ['TOTAL'], total: true };
+    if (f.local) return Object.keys(d.equivalencias).filter(function (l) { return d.equivalencias[l] === f.local; });
+    return ['TOTAL'];
   }
 
-  function sumar(lista, campos) {
-    var r = {}; campos.forEach(function (c) { r[c] = 0; });
-    lista.forEach(function (x) { campos.forEach(function (c) { r[c] += +x[c] || 0; }); });
+  var CAMPOS = ['clientes', 'nuevos', 'previos', 'repiten', 'clientes_cortesia', 'items', 'sesiones', 'neto'];
+
+  /** Resumen de un período (personas distintas). Sin la pestaña por período, solo sirve para un mes. */
+  function resumen(desde, hasta, locales) {
+    var d = est.datos, r = {};
+    CAMPOS.forEach(function (c) { r[c] = 0; });
+    if (d.periodo) {
+      filas('periodo', function (x) { return x.desde === desde && x.hasta === hasta && locales.indexOf(x.local) >= 0; })
+        .forEach(function (x) { CAMPOS.forEach(function (c) { r[c] += +x[c] || 0; }); });
+    } else if (desde === hasta) {
+      filas('clientes', function (x) { return x.mes === hasta && locales.indexOf(x.local) >= 0; }).forEach(function (x) {
+        r.clientes += +x.clientes || 0; r.nuevos += +x.nuevos || 0; r.previos += +x.recurrentes || 0;
+        r.clientes_cortesia += +x.clientes_cortesia || 0; r.items += +x.items || 0; r.sesiones += +x.sesiones || 0; r.neto += +x.neto || 0;
+      });
+      r.repiten = null;
+    } else return null;
+    var n = r.clientes;
+    r.gasto = n ? r.neto / 1.21 / n : null;
+    r.itemsPorCliente = n ? r.items / n : null;
+    r.sesionesPorCliente = n ? r.sesiones / n : null;
+    r.pNuevos = n ? r.nuevos / n : null;
+    r.pRepiten = n && r.repiten != null ? r.repiten / n : null;
+    r.pCortesia = n ? r.clientes_cortesia / n : null;
     return r;
   }
 
-  var CAMPOS = ['clientes', 'nuevos', 'recurrentes', 'clientes_cortesia', 'items', 'sesiones', 'neto'];
-  function resumenMes(mes, sel) {
-    var r = sumar(filas('clientes', function (x) { return x.mes === mes && sel.locales.indexOf(x.local) >= 0; }), CAMPOS);
+  /** Mensual (de la pestaña clientes) para los gráficos por mes. */
+  function mensual(mes, locales) {
+    var r = { clientes: 0, nuevos: 0, recurrentes: 0, neto: 0 };
+    filas('clientes', function (x) { return x.mes === mes && locales.indexOf(x.local) >= 0; }).forEach(function (x) {
+      r.clientes += +x.clientes || 0; r.nuevos += +x.nuevos || 0; r.recurrentes += +x.recurrentes || 0; r.neto += +x.neto || 0;
+    });
     r.gasto = r.clientes ? r.neto / 1.21 / r.clientes : null;
-    r.itemsPorCliente = r.clientes ? r.items / r.clientes : null;
-    r.sesionesPorCliente = r.clientes ? r.sesiones / r.clientes : null;
-    r.pNuevos = r.clientes ? r.nuevos / r.clientes : null;
-    r.pCortesia = r.clientes ? r.clientes_cortesia / r.clientes : null;
     return r;
   }
 
@@ -84,29 +101,46 @@
       return;
     }
     var sel = seleccion();
-    if (!sel.locales.length) {
+    if (!sel.length) {
       aviso.hidden = false; aviso.textContent = 'No hay datos de clientes para ' + (f.localNombre || 'este local') + '.';
       return;
     }
-    var mes = f.mes && d.meses.indexOf(f.mes) >= 0 ? f.mes : d.meses[d.meses.length - 1];
-    if (f.mes && f.mes !== mes) avisos.push('La información de clientes es a mes vencido: todavía no hay datos de ' + mesLargo(f.mes) +
-      '. Se muestra ' + mesLargo(mes) + ', el último mes del archivo.');
-    if (mes === d.meses[0]) avisos.push('En ' + mesLargo(mes) + ' todos los clientes figuran como nuevos porque el archivo empieza ese mes.');
+
+    // Período: Desde / Hasta del tablero, ajustado a los meses que tiene el archivo (es a mes vencido).
+    var primero = d.meses[0], ultimo = d.meses[d.meses.length - 1];
+    var hasta = f.mes && d.meses.indexOf(f.mes) >= 0 ? f.mes : (f.mes && f.mes < primero ? primero : ultimo);
+    var desde = f.desde && d.meses.indexOf(f.desde) >= 0 ? f.desde : (f.desde && f.desde < primero ? primero : hasta);
+    if (desde > hasta) desde = hasta;
+    if ((f.mes && f.mes !== hasta) || (f.desde && f.desde !== desde)) {
+      avisos.push('La información de clientes es a mes vencido: llega hasta ' + mesLargo(ultimo) + '. Se muestra ' +
+        (desde === hasta ? mesLargo(hasta) : 'de ' + mesLargo(desde) + ' a ' + mesLargo(hasta)) + '.');
+    }
+    if (!d.periodo && desde !== hasta) {
+      avisos.push('Los clientes por período se están calculando (el procesador los actualiza dentro de la hora). Mientras tanto se muestra ' + mesLargo(hasta) + '.');
+      desde = hasta;
+    }
+    if (desde === primero) avisos.push('Como el archivo empieza en ' + mesLargo(primero) + ', en ese mes todos los clientes figuran como nuevos.');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
-    var i = d.meses.indexOf(mes);
-    var a = resumenMes(mes, sel), p = i > 0 ? resumenMes(d.meses[i - 1], sel) : null;
-    var mesAnt = i > 0 ? mesCorto(d.meses[i - 1]) : '';
+    var iD = d.meses.indexOf(desde), iH = d.meses.indexOf(hasta), largo = iH - iD + 1;
+    var enRango = function (m) { return m >= desde && m <= hasta; };
+    var textoPeriodo = desde === hasta ? mesCorto(hasta) : mesCorto(desde) + ' a ' + mesCorto(hasta);
+    var a = resumen(desde, hasta, sel);
+    var p = iD - largo >= 0 ? resumen(d.meses[iD - largo], d.meses[iD - 1], sel) : null;
+    var contra = largo === 1 ? mesCorto(d.meses[iD - 1] || desde) : 'período anterior';
     var delta = function (act, ant, fmt) {
       if (!p || act == null || ant == null) return '&nbsp;';
       var dif = act - ant;
-      if (Math.abs(dif) < 1e-9) return 'igual que ' + mesAnt;
-      return '<span style="color:' + (dif > 0 ? css('--good-text') : css('--critical-text')) + '">' + (dif > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dif)) + '</span> vs ' + mesAnt;
+      if (Math.abs(dif) < 1e-9) return 'igual que ' + contra;
+      return '<span style="color:' + (dif > 0 ? css('--good-text') : css('--critical-text')) + '">' + (dif > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dif)) + '</span> vs ' + contra;
     };
-    var dec = function (v) { return nf1.format(v); };
+    var dec = function (v) { return v == null ? '–' : nf1.format(v); };
+    var pts = function (v) { return nf1.format(v * 100) + ' pts'; };
     $('cl-kpis').innerHTML = [
-      ['Clientes · ' + mesCorto(mes), nf0.format(a.clientes), delta(a.clientes, p && p.clientes, function (v) { return nf0.format(v); })],
-      ['Nuevos / recurrentes', nf0.format(a.nuevos) + ' / ' + nf0.format(a.recurrentes), pct(a.pNuevos) + ' son nuevos'],
+      ['Clientes · ' + textoPeriodo, nf0.format(a.clientes), delta(a.clientes, p && p.clientes, function (v) { return nf0.format(v); })],
+      ['Nuevos / ya eran clientes', nf0.format(a.nuevos) + ' / ' + nf0.format(a.previos), pct(a.pNuevos) + ' son nuevos'],
+      ['Clientes que repiten', pct(a.pRepiten), a.repiten == null ? '&nbsp;' : nf0.format(a.repiten) + ' compraron en 2 o más días · ' +
+        delta(a.pRepiten, p && p.pRepiten, pts).replace('&nbsp;', '')],
       ['Gasto por cliente (sin IVA)', miles(a.gasto), delta(a.gasto, p && p.gasto, miles)],
       ['Ítems / sesiones por cliente', dec(a.itemsPorCliente) + ' / ' + dec(a.sesionesPorCliente), pct(a.pCortesia) + ' se llevó una cortesía']
     ].map(function (k, j) {
@@ -114,7 +148,8 @@
         '</div><div class="kpi-det">' + k[2] + '</div></div>';
     }).join('');
 
-    var serie = d.meses.map(function (m) { return resumenMes(m, sel); });
+    // ---- Gráficos por mes (los meses del período resaltados) ----
+    var serie = d.meses.map(function (m) { return mensual(m, sel); });
     var etiquetas = d.meses.map(mesCorto);
     var base = function (fmtY) {
       return {
@@ -127,22 +162,20 @@
     };
     var dibujar = function (id, cfg) { if (graficos[id]) graficos[id].destroy(); graficos[id] = new Chart($(id), cfg); };
     var entero = function (v) { return nf0.format(v); };
+    var color = function (fuerte, suave) { return d.meses.map(function (m) { return enRango(m) ? fuerte : suave; }); };
 
-    // Clientes: nuevos + recurrentes apilados
     var opC = base(entero); opC.scales.x.stacked = true; opC.scales.y.stacked = true;
     dibujar('cl-ch-clientes', { type: 'bar', data: { labels: etiquetas, datasets: [
-      { label: 'Nuevos', data: serie.map(function (s) { return s.nuevos; }), backgroundColor: '#0000ff', maxBarThickness: 26, borderColor: '#fff', borderWidth: { top: 2 } },
-      { label: 'Recurrentes', data: serie.map(function (s) { return s.recurrentes; }), backgroundColor: '#9999ff', maxBarThickness: 26, borderRadius: { topLeft: 4, topRight: 4 } }
+      { label: 'Nuevos', data: serie.map(function (s) { return s.nuevos; }), backgroundColor: color('#0000ff', '#b3b3ff'), maxBarThickness: 26, borderColor: '#fff', borderWidth: { top: 2 } },
+      { label: 'Recurrentes', data: serie.map(function (s) { return s.recurrentes; }), backgroundColor: color('#7f7fff', '#dcdcff'), maxBarThickness: 26, borderRadius: { topLeft: 4, topRight: 4 } }
     ] }, options: opC });
     $('cl-l-clientes').innerHTML = '<span><i class="caja" style="background:#0000ff"></i>Nuevos (primera compra)</span>' +
-      '<span><i class="caja" style="background:#9999ff"></i>Recurrentes (ya habían comprado)</span>';
+      '<span><i class="caja" style="background:#7f7fff"></i>Recurrentes (ya habían comprado)</span>';
 
     dibujar('cl-ch-gasto', { type: 'bar', data: { labels: etiquetas, datasets: [{ data: serie.map(function (s) { return s.gasto; }),
-      backgroundColor: d.meses.map(function (m) { return m === mes ? '#0000ff' : '#9999ff'; }), maxBarThickness: 24,
-      borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] }, options: base(miles) });
+      backgroundColor: color('#0000ff', '#b3b3ff'), maxBarThickness: 24, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] }, options: base(miles) });
 
-    // Mix de paquetes (% de ítems) por mes
-    var paq = filas('paquetes', function (x) { return sel.total ? x.local !== 'TOTAL' : sel.locales.indexOf(x.local) >= 0; });
+    var paq = filas('paquetes', function (x) { return sel[0] === 'TOTAL' ? true : sel.indexOf(x.local) >= 0; });
     var porMes = {};
     paq.forEach(function (x) { var o = porMes[x.mes] = porMes[x.mes] || {}; o[x.tipo] = (o[x.tipo] || 0) + (+x.items || 0); });
     var tipos = TIPOS.filter(function (t) { return paq.some(function (x) { return x.tipo === t; }); });
@@ -153,9 +186,9 @@
         data: d.meses.map(function (m) { var o = porMes[m] || {}, tot = 0; Object.keys(o).forEach(function (k) { tot += o[k]; }); return tot ? (o[t] || 0) / tot : 0; }) };
     }) }, options: opP });
 
-    // Top 10 ítems del mes por venta
+    // Top 10 ítems del período por venta
     var its = {};
-    filas('items', function (x) { return x.mes === mes && (sel.total ? true : sel.locales.indexOf(x.local) >= 0); }).forEach(function (x) {
+    filas('items', function (x) { return enRango(x.mes) && (sel[0] === 'TOTAL' || sel.indexOf(x.local) >= 0); }).forEach(function (x) {
       var o = its[x.item] = its[x.item] || { neto: 0, sesiones: 0, items: 0 };
       o.neto += +x.neto || 0; o.sesiones += +x.sesiones || 0; o.items += +x.items || 0;
     });
@@ -170,29 +203,31 @@
       datasets: [{ data: top.map(function (t) { return t.v.neto; }), backgroundColor: '#0000ff', maxBarThickness: 18, borderRadius: 3 }] }, options: opI });
 
     var nombre = mayus(f.local ? f.localNombre : (f.grupoTexto || 'locales propios'));
+    var periodoLargo = desde === hasta ? mesLargo(hasta) : 'de ' + mesLargo(desde) + ' a ' + mesLargo(hasta);
     $('cl-n-clientes').textContent = nombre + ' · personas distintas que compraron cada mes';
-    $('cl-n-gasto').textContent = nombre + ' · venta neta ÷ 1,21 ÷ clientes';
-    $('cl-n-items').textContent = nombre + ' · ' + mesLargo(mes) + ' · top 10 por venta neta (sin cortesías)';
+    $('cl-n-gasto').textContent = nombre + ' · venta neta ÷ 1,21 ÷ clientes del mes';
+    $('cl-n-items').textContent = nombre + ' · ' + periodoLargo + ' · top 10 por venta neta (sin cortesías)';
 
-    // Tabla por local
+    // ---- Tabla por local (período completo) ----
     var locs = Object.keys(d.equivalencias).filter(function (l) {
       var k = d.equivalencias[l];
       return l !== 'TOTAL' && (f.grupo === 'todos' || !f.clavesGrupo || (k != null && f.clavesGrupo.indexOf(k) >= 0));
     });
     var nombreDe = function (l) { var k = d.equivalencias[l]; return (k && f.nombres && f.nombres[k]) || l; };
-    var tabla = locs.map(function (l) { var r = resumenMes(mes, { locales: [l] }); r.local = l; return r; })
-      .filter(function (r) { return r.clientes; }).sort(function (x, y) { return y.clientes - x.clientes; });
+    var tabla = locs.map(function (l) { var r = resumen(desde, hasta, [l]); if (r) r.local = l; return r; })
+      .filter(function (r) { return r && r.clientes; }).sort(function (x, y) { return y.clientes - x.clientes; });
     var celdas = function (r) {
-      return '<td>' + nf0.format(r.clientes) + '</td><td>' + pct(r.pNuevos) + '</td><td>' + miles(r.gasto) + '</td><td>' +
-        nf1.format(r.itemsPorCliente || 0) + '</td><td>' + nf1.format(r.sesionesPorCliente || 0) + '</td><td>' + pct(r.pCortesia) + '</td>';
+      return '<td>' + nf0.format(r.clientes) + '</td><td>' + pct(r.pNuevos) + '</td><td>' + pct(r.pRepiten) + '</td><td>' + miles(r.gasto) +
+        '</td><td>' + dec(r.itemsPorCliente) + '</td><td>' + dec(r.sesionesPorCliente) + '</td><td>' + pct(r.pCortesia) + '</td>';
     };
-    var tot = resumenMes(mes, { locales: ['TOTAL'] });
-    $('cl-tabla').innerHTML = '<thead><tr><th class="izq">Local</th><th>Clientes</th><th>% nuevos</th><th>Gasto/cliente</th>' +
+    var tot = resumen(desde, hasta, ['TOTAL']);
+    $('cl-tabla').innerHTML = '<thead><tr><th class="izq">Local</th><th>Clientes</th><th>% nuevos</th><th>% repiten</th><th>Gasto/cliente</th>' +
       '<th>Ítems/cliente</th><th>Sesiones/cliente</th><th>% con cortesía</th></tr></thead><tbody>' +
       tabla.map(function (r) {
         return '<tr' + (f.local && d.equivalencias[r.local] === f.local ? ' class="sel"' : '') + '><td class="izq">' + esc(nombreDe(r.local)) + '</td>' + celdas(r) + '</tr>';
-      }).join('') + '</tbody><tfoot><tr><td class="izq">Total empresa</td>' + celdas(tot) + '</tr></tfoot>';
-    $('cl-n-tabla').textContent = mayus(mesLargo(mes)) + ' · ordenado por clientes. El total cuenta cada persona una sola vez aunque haya comprado en varios locales.';
+      }).join('') + '</tbody>' + (tot ? '<tfoot><tr><td class="izq">Total empresa</td>' + celdas(tot) + '</tr></tfoot>' : '');
+    $('cl-n-tabla').textContent = mayus(periodoLargo) + ' · ordenado por clientes · "repiten" = compraron en 2 o más días del período. ' +
+      'El total cuenta cada persona una sola vez aunque haya comprado en varios locales.';
   }
 
   // ---------- Carga ----------
