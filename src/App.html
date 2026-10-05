@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var estado = { datos: null, mes: null, grupo: 'propio', local: '', orden: { col: 'venta', dir: -1 }, vsMapa: 'super' };
+  var estado = { datos: null, mes: null, desde: null, grupo: 'propio', local: '', orden: { col: 'venta', dir: -1 }, vsMapa: 'super' };
   var graficos = {};
   if (window.Chart) {
     Chart.defaults.font.family = 'Montserrat, system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -71,6 +71,45 @@
     return { mes: mes, abierto: abierto, nDias: nDias, transcurridos: transcurridos, restantes: restantes, filas: filas, total: total, diario: diario };
   }
 
+  /**
+   * Acumulado de varios meses (Desde → Hasta): suma venta, Meta, Súper y proyección por local.
+   * Si Desde = Hasta es igual a calcularMes(). Los días del mes en curso (proyección, necesario
+   * por día) salen del último mes del rango.
+   */
+  function calcularRango(desde, hasta) {
+    var meses = estado.datos.meses.map(function (m) { return m.mes; })
+      .filter(function (m) { return m >= (desde || hasta) && m <= hasta; });
+    if (meses.length <= 1) return calcularMes(hasta);
+    var cs = meses.map(calcularMes), ult = cs[cs.length - 1];
+    var porClave = {}, orden = [];
+    cs.forEach(function (c) {
+      c.filas.forEach(function (f) {
+        var a = porClave[f.clave];
+        if (!a) { a = porClave[f.clave] = { clave: f.clave, venta: 0, meta: 0, super: 0, proy: 0 }; orden.push(f.clave); }
+        a.nombre = f.nombre; a.tipo = f.tipo;
+        a.venta += f.venta; a.meta += f.meta; a.super += f.super; a.proy += f.proy;
+      });
+    });
+    var total = { venta: 0, meta: 0, super: 0, proy: 0 };
+    var filas = orden.map(function (k) {
+      var a = porClave[k];
+      total.venta += a.venta; total.meta += a.meta; total.super += a.super; total.proy += a.proy;
+      a.pMeta = a.meta ? a.venta / a.meta : null;
+      a.pSuper = a.super ? a.venta / a.super : null;
+      a.pProy = a.meta ? a.proy / a.meta : null;
+      a.necesario = ult.abierto && ult.restantes > 0 ? Math.max(0, (a.super - a.venta) / ult.restantes) : null;
+      return a;
+    });
+    filas.forEach(function (f) { f.part = total.venta ? f.venta / total.venta : 0; });
+    return { mes: hasta, desde: meses[0], rango: true, meses: meses, abierto: ult.abierto, nDias: ult.nDias,
+      transcurridos: ult.transcurridos, restantes: ult.restantes, filas: filas, total: total, diario: ult.diario };
+  }
+
+  function textoRango(c) {
+    var anio = c.mes.slice(0, 4);
+    return nombreMes(c.desde, true) + (c.desde.slice(0, 4) !== anio ? ' ' + c.desde.slice(0, 4) : '') + ' a ' + nombreMes(c.mes, true) + ' ' + anio;
+  }
+
   function estadoLocal(f, abierto) {
     if (f.meta && f.venta >= f.super && f.super) return { txt: 'Súper', icono: '★', color: css('--good'), fila: '' };
     if (f.meta && f.venta >= f.meta) return { txt: 'Meta', icono: '✓', color: css('--good'), fila: '' };
@@ -83,15 +122,15 @@
 
   // ---------- Render ----------
   function render() {
-    var c = calcularMes(estado.mes);
+    var c = calcularRango(estado.desde, estado.mes), cm = c.rango ? calcularMes(estado.mes) : c;
     renderKpis(c);
     renderRanking(c);
-    renderRitmo(c);
+    renderRitmo(cm);
     renderDiaria(c);
     renderSemanal();
     renderEvolucion();
     renderMapa();
-    avisarFiltros(c);
+    avisarFiltros(cm);
   }
 
   /** Avisa a la vista Indicadores comerciales (ComercialApp) qué Mes / Grupo / Local están elegidos. */
@@ -114,13 +153,16 @@
       return '<div class="medidor" aria-hidden="true"><i style="width:' + Math.min(100, (v || 0) / 1.5 * 100) + '%"></i><b style="left:' + (100 / 1.5) + '%"></b></div>';
     };
     var tiles = [
-      { cls: 'hero', label: 'Venta ' + (c.abierto ? 'al ' + c.transcurridos + '/' + +c.mes.slice(5, 7) : 'del mes'), valor: millones(t.venta),
-        det: c.filas.length + ' locales · ' + (c.abierto ? 'día ' + c.transcurridos + ' de ' + c.nDias : 'mes cerrado') },
+      c.rango
+        ? { cls: 'hero', label: 'Venta acumulada · ' + textoRango(c), valor: millones(t.venta),
+            det: c.filas.length + ' locales · ' + c.meses.length + ' meses' + (c.abierto ? ' · ' + nombreMes(c.mes, true).toLowerCase() + ' al día ' + c.transcurridos : '') }
+        : { cls: 'hero', label: 'Venta ' + (c.abierto ? 'al ' + c.transcurridos + '/' + +c.mes.slice(5, 7) : 'del mes'), valor: millones(t.venta),
+            det: c.filas.length + ' locales · ' + (c.abierto ? 'día ' + c.transcurridos + ' de ' + c.nDias : 'mes cerrado') },
       { label: 'Cumplimiento de Meta', valor: pct(t.venta / t.meta), det: 'Meta ' + millones(t.meta), extra: medidor(t.venta / t.meta) },
       { label: 'Cumplimiento de Súper', valor: pct(t.venta / t.super), det: 'Súper ' + millones(t.super), extra: medidor(t.venta / t.super) },
       c.abierto
-        ? { label: 'Proyección de cierre', valor: millones(t.proy), det: pct(t.proy / t.meta) + ' de la Meta · ' + pct(t.proy / t.super) + ' del Súper' }
-        : { label: 'Cierre del mes', valor: millones(t.venta), det: 'Mes cerrado' },
+        ? { label: c.rango ? 'Proyección del período' : 'Proyección de cierre', valor: millones(t.proy), det: pct(t.proy / t.meta) + ' de la Meta · ' + pct(t.proy / t.super) + ' del Súper' }
+        : { label: c.rango ? 'Cierre del período' : 'Cierre del mes', valor: millones(t.venta), det: c.rango ? 'Meses cerrados' : 'Mes cerrado' },
       { label: 'Locales en Meta', valor: enMeta + ' de ' + conMeta, det: enSuper + ' también en Súper' }
     ];
     var el = $('kpis');
@@ -191,9 +233,9 @@
       '<tbody>' + filas.map(function (f) { return '<tr class="' + estadoLocal(f, c.abierto).fila + '">' + cols.map(function (col) { return celda[col.id](f); }).join('') + '</tr>'; }).join('') + '</tbody>' +
       '<tfoot><tr>' + cols.map(function (col) { return '<td' + (col.izq ? ' class="izq"' : '') + '>' + pie[col.id] + '</td>'; }).join('') + '</tr></tfoot>';
 
-    $('nota-ranking').textContent = c.abierto
+    $('nota-ranking').textContent = (c.rango ? 'Acumulado ' + textoRango(c) + '. ' : '') + (c.abierto
       ? 'Proyección = venta a la fecha ÷ ' + c.transcurridos + ' días × ' + c.nDias + ' días. Necesario/día = lo que falta para el Súper ÷ ' + c.restantes + ' días restantes. La barra marca el 100% de la Meta.'
-      : 'Mes cerrado. La barra de % Meta marca el 100%.';    $('panel-ranking').hidden = false;
+      : 'Mes cerrado. La barra de % Meta marca el 100%.');    $('panel-ranking').hidden = false;
   }
 
   // ---------- Gráficos ----------
@@ -225,9 +267,12 @@
   function serieDiaria(c) {
     var claves = estado.local ? [estado.local] : c.filas.map(function (f) { return f.clave; });
     var porFecha = {};
-    for (var dia = 1; dia <= c.nDias; dia++) porFecha[c.mes + '-' + (dia < 10 ? '0' : '') + dia] = 0;
-    claves.forEach(function (k) {
-      (c.diario[k] || []).forEach(function (p) { if (p[0] in porFecha) porFecha[p[0]] += p[1]; });
+    (c.meses || [c.mes]).forEach(function (m) {
+      for (var dia = 1; dia <= diasDelMes(m); dia++) porFecha[m + '-' + (dia < 10 ? '0' : '') + dia] = 0;
+      var diario = estado.datos.diario[m] || {};
+      claves.forEach(function (k) {
+        (diario[k] || []).forEach(function (p) { if (p[0] in porFecha) porFecha[p[0]] += p[1]; });
+      });
     });
     return Object.keys(porFecha).sort().map(function (f) { return [f, porFecha[f]]; });
   }
@@ -276,8 +321,9 @@
 
   function renderDiaria(c) {
     var serie = serieDiaria(c), a = alcance(c);
-    var hasta = c.abierto ? c.transcurridos : c.nDias;
-    var datos = serie.map(function (p, i) { return i < hasta ? p[1] : null; });
+    // Sin barras después del último día con ventas del mes en curso.
+    var corte = c.abierto ? c.mes + '-' + (c.transcurridos < 10 ? '0' : '') + c.transcurridos : '9999';
+    var datos = serie.map(function (p) { return p[0] <= corte ? p[1] : null; });
     var op = baseOpciones();
     op.interaction = { mode: 'nearest', axis: 'x', intersect: false };
     op.plugins.tooltip.callbacks = {
@@ -294,7 +340,8 @@
     });
     var conVenta = datos.filter(function (v) { return v; });
     var prom = conVenta.length ? conVenta.reduce(function (x, y) { return x + y; }, 0) / conVenta.length : 0;
-    $('nota-diaria').textContent = a.nombre.replace(/^./, function (x) { return x.toUpperCase(); }) + ' · promedio ' + millones(prom) + ' por día con venta';
+    $('nota-diaria').textContent = a.nombre.replace(/^./, function (x) { return x.toUpperCase(); }) + (c.rango ? ' · ' + textoRango(c) : '') +
+      ' · promedio ' + millones(prom) + ' por día con venta';
   }
 
   // ---------- Semana a semana ----------
@@ -429,7 +476,8 @@
       data: {
         labels: meses.map(function (m, i) { return nombreMes(m, true) + (puntos[i].abierto ? ' (en curso)' : ''); }),
         datasets: [
-          { type: 'bar', label: 'Venta', data: puntos.map(function (p) { return p.venta; }), backgroundColor: s1, maxBarThickness: 24, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start', order: 2 },
+          { type: 'bar', label: 'Venta', data: puntos.map(function (p) { return p.venta; }),
+            backgroundColor: meses.map(function (m) { return m >= (estado.desde || estado.mes) && m <= estado.mes ? s1 : '#b3b3ff'; }), maxBarThickness: 24, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start', order: 2 },
           { type: 'line', label: 'Meta', data: puntos.map(function (p) { return p.meta; }), borderColor: ref, backgroundColor: ref, borderWidth: 2, pointRadius: 4, pointBorderColor: css('--surface'), pointBorderWidth: 2, order: 1 }
         ]
       },
@@ -514,7 +562,19 @@
   }
 
   function iniciarControles() {
-    $('f-mes').addEventListener('change', function (e) { estado.mes = e.target.value; llenarLocales(); render(); });
+    // Hasta = el mes que se analiza; Desde = inicio del acumulado (igual a Hasta para ver un solo mes).
+    $('f-mes').addEventListener('change', function (e) {
+      var antes = estado.mes;
+      estado.mes = e.target.value;
+      if (!estado.desde || estado.desde === antes || estado.desde > estado.mes) estado.desde = estado.mes;
+      $('f-desde').value = estado.desde;
+      llenarLocales(); render();
+    });
+    $('f-desde').addEventListener('change', function (e) {
+      estado.desde = e.target.value;
+      if (estado.desde > estado.mes) { estado.mes = estado.desde; $('f-mes').value = estado.mes; llenarLocales(); }
+      render();
+    });
     $('f-local').addEventListener('change', function (e) { estado.local = e.target.value; render(); });
     $('f-grupo').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
@@ -553,7 +613,7 @@
     var col = th.getAttribute('data-orden');
     if (estado.orden.col === col) estado.orden.dir *= -1;
     else estado.orden = { col: col, dir: col === 'nombre' ? 1 : -1 };
-    renderRanking(calcularMes(estado.mes));
+    renderRanking(calcularRango(estado.desde, estado.mes));
   }
 
   // ---------- Carga ----------
@@ -568,9 +628,14 @@
         estado.datos = d;
         var meses = d.meses.map(function (m) { return m.mes; });
         estado.mes = meses.indexOf(mesPrevio) >= 0 ? mesPrevio : meses[meses.length - 1];
-        $('f-mes').innerHTML = meses.slice().reverse().map(function (m) {
-          return '<option value="' + m + '"' + (m === estado.mes ? ' selected' : '') + '>' + nombreMes(m).replace(/^./, function (x) { return x.toUpperCase(); }) + '</option>';
-        }).join('');
+        if (meses.indexOf(estado.desde) < 0 || estado.desde > estado.mes) estado.desde = estado.mes;
+        var opciones = function (sel) {
+          return meses.slice().reverse().map(function (m) {
+            return '<option value="' + m + '"' + (m === sel ? ' selected' : '') + '>' + nombreMes(m).replace(/^./, function (x) { return x.toUpperCase(); }) + '</option>';
+          }).join('');
+        };
+        $('f-mes').innerHTML = opciones(estado.mes);
+        $('f-desde').innerHTML = opciones(estado.desde);
         var act = d.actualizado ? new Date(d.actualizado + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : 's/d';
         $('fuente').textContent = (d.planilla || 'Facturación 2026') + ' · datos al ' + act +
           (d.actualizadoInferido ? ' (último día con ventas; la celda A1 de Ventas Mensuales está vacía)' : '') + ' · leído ' +
