@@ -636,10 +636,10 @@
         };
         $('f-mes').innerHTML = opciones(estado.mes);
         $('f-desde').innerHTML = opciones(estado.desde);
-        var act = d.actualizado ? new Date(d.actualizado + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : 's/d';
-        $('fuente').textContent = (d.planilla || 'Facturación 2026') + ' · datos al ' + act +
-          (d.actualizadoInferido ? ' (último día con ventas; la celda A1 de Ventas Mensuales está vacía)' : '') + ' · leído ' +
-          new Date(d.generado).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' h';
+        // Mismo formato en las tres vistas: Fuente · actualizado · datos de … a …
+        var act = d.actualizado ? d.actualizado.replace(/^(\d{4})-(\d{2})-(\d{2}).*/, '$3/$2/$1') : 's/d';
+        $('fuente').textContent = 'Fuente: ' + (d.planilla || 'Facturación 2026') + ' · actualizado ' + act +
+          ' · datos de ' + nombreMes(meses[0]) + ' a ' + nombreMes(meses[meses.length - 1]);
         $('estado').hidden = true;
         $('graficos-mes').hidden = false;
         $('panel-evolucion').hidden = false;

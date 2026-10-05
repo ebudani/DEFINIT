@@ -45,6 +45,10 @@ function getClientes() {
   (tablas.clientes || []).slice(1).forEach(function (f) { if (f[0]) meses[f[0]] = true; });
 
   var archivo = (tablas.info || []).filter(function (f) { return f[0] === 'sesiones'; })[0] || [];
+  // Sheets puede haber guardado la fecha de actualización como número de serie (con hora en los decimales).
+  if (typeof archivo[2] === 'number') {
+    archivo[2] = Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.round(archivo[2] * 86400000)), 'UTC', 'yyyy-MM-dd HH:mm');
+  }
   return JSON.stringify({
     meses: Object.keys(meses).sort(),
     equivalencias: equivalencias,
