@@ -16,7 +16,7 @@
 var CARPETA_ID = '1rqvtYLmOmLqtuvovHk4jIZJIZVhg3TpB';
 var NOMBRE_BASE = 'DEFINIT – Base comercial';
 // Subir este número cuando cambie lo que se calcula: fuerza a reprocesar los archivos.
-var VERSION_CALCULO = 2;
+var VERSION_CALCULO = 3;
 
 // Qué archivo de la carpeta alimenta cada pestaña de la base.
 var FUENTES = [
@@ -276,6 +276,7 @@ function procesarSesiones(hojas) {
     tablas.clientes = c.clientes;
     tablas.paquetes = c.paquetes;
     tablas.items = c.items;
+    tablas.clientes_periodo = c.clientes_periodo;
   }
   return tablas;
 }
