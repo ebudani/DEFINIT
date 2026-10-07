@@ -183,6 +183,7 @@
     renderSemanal();
     renderEvolucion();
     renderMapa();
+    renderConcentracion();
     avisarFiltros(cm);
   }
 
@@ -353,6 +354,36 @@
     return f ? { nombre: f.nombre, meta: f.meta, super: f.super, proy: f.proy } : { nombre: estado.local, meta: 0, super: 0, proy: 0 };
   }
 
+  /** Meta (o Súper) del mes para el local elegido o el grupo completo. */
+  function objetivoMes(mes, campo) {
+    var cm = calcularMes(mes);
+    if (!estado.local) return cm.total[campo];
+    var f = cm.filas.filter(function (x) { return x.clave === estado.local; })[0];
+    return f ? f[campo] : 0;
+  }
+
+  // Últimos días del mes que se miran para medir el "hockey stick".
+  var DIAS_CIERRE = 7;
+
+  /**
+   * Concentración de fin de mes de un mes para unos locales: qué parte de la venta se hizo en los
+   * últimos 7 días y qué día se llegó a la mitad de la venta del mes.
+   */
+  function concentracion(mes, claves) {
+    var n = diasDelMes(mes), porDia = {}, total = 0, fin = 0;
+    var diario = estado.datos.diario[mes] || {};
+    claves.forEach(function (k) {
+      (diario[k] || []).forEach(function (p) {
+        porDia[p[0]] = (porDia[p[0]] || 0) + p[1]; total += p[1];
+        if (+p[0].slice(8, 10) > n - DIAS_CIERRE) fin += p[1];
+      });
+    });
+    if (!total) return null;
+    var ac = 0, dia50 = null;
+    Object.keys(porDia).sort().forEach(function (f) { ac += porDia[f]; if (dia50 == null && ac >= total / 2) dia50 = +f.slice(8, 10); });
+    return { pct: fin / total, fin: fin, total: total, dia50: dia50, n: n };
+  }
+
   function grupoTexto() {
     return { propio: 'locales propios', franquicia: 'franquicias', todos: 'todos los locales' }[estado.grupo];
   }
@@ -388,6 +419,15 @@
     var marca = function (cr, obj) { return serie.map(function (p, i) { return cr && i === cr.i ? obj : null; }); };
     var linea = function (v) { return serie.map(function () { return v; }); };
 
+    // Ritmo parejo: la Meta de cada mes repartida en partes iguales por día (diagonal de $0 a la Meta).
+    var metaDia = {}, accP = 0;
+    var parejo = serie.map(function (p) {
+      var m = p[0].slice(0, 7);
+      if (!(m in metaDia)) metaDia[m] = objetivoMes(m, 'meta') / diasDelMes(m);
+      accP += metaDia[m];
+      return accP;
+    });
+
     var s1 = css('--series-1'), ref = css('--ref'), muted = css('--muted'), surface = css('--surface');
     var ds = [
       { label: 'Venta acumulada', data: acumulado, borderColor: s1, backgroundColor: css('--series-1-wash'), fill: 'origin', borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0 },
@@ -395,14 +435,15 @@
       { label: 'Meta', data: linea(a.meta), borderColor: ref, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0, fill: false },
       { label: 'Súper', data: linea(a.super), borderColor: muted, borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0, pointHoverRadius: 0, fill: false },
       { label: 'Cruza la Meta', data: marca(cMeta, a.meta), showLine: false, pointRadius: 7, pointHoverRadius: 8, pointBackgroundColor: ref, pointBorderColor: surface, pointBorderWidth: 2 },
-      { label: 'Cruza el Súper', data: marca(cSuper, a.super), showLine: false, pointRadius: 7, pointHoverRadius: 8, pointStyle: 'rectRot', pointBackgroundColor: muted, pointBorderColor: surface, pointBorderWidth: 2 }
+      { label: 'Cruza el Súper', data: marca(cSuper, a.super), showLine: false, pointRadius: 7, pointHoverRadius: 8, pointStyle: 'rectRot', pointBackgroundColor: muted, pointBorderColor: surface, pointBorderWidth: 2 },
+      { label: 'Ritmo parejo', data: parejo, borderColor: css('--warning'), borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 3, fill: false }
     ];
     var op = baseOpciones();
     op.plugins.tooltip.callbacks = {
       title: function (items) { return new Date(serie[items[0].dataIndex][0] + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }); },
       label: function (ctx) {
         if (ctx.raw == null) return null;
-        if (ctx.datasetIndex >= 4) return ' ' + ctx.dataset.label + (ctx.datasetIndex === 4 ? (cMeta.real ? '' : ' (proyectado)') : (cSuper.real ? '' : ' (proyectado)'));
+        if (ctx.datasetIndex === 4 || ctx.datasetIndex === 5) return ' ' + ctx.dataset.label + (ctx.datasetIndex === 4 ? (cMeta.real ? '' : ' (proyectado)') : (cSuper.real ? '' : ' (proyectado)'));
         return ' ' + ctx.dataset.label + ': ' + millones(ctx.raw);
       }
     };
@@ -413,7 +454,44 @@
       '<span><i style="border-color:' + s1 + '"></i>Venta acumulada</span>' +
       (conProy ? '<span><i class="punteada" style="border-color:' + s1 + '"></i>Proyección al ritmo actual</span>' : '') +
       '<span><i style="border-color:' + ref + '"></i>Meta ' + millones(a.meta) + '</span>' +
-      '<span><i class="punteada" style="border-color:' + muted + '"></i>Súper ' + millones(a.super) + '</span>';
+      '<span><i class="punteada" style="border-color:' + muted + '"></i>Súper ' + millones(a.super) + '</span>' +
+      '<span><i class="punteada" style="border-color:' + css('--warning') + '"></i>Ritmo parejo hacia la Meta</span>';
+
+    // Contra el ritmo parejo: en un período en curso, cómo viene hoy; en uno cerrado, el peor momento.
+    var vsParejo = '';
+    if (iCorte >= 0 && parejo[iCorte]) {
+      if (iCorte < serie.length - 1) {
+        var dif = acumulado[iCorte] - parejo[iCorte];
+        vsParejo = 'Al ' + fechaCorta(serie[iCorte][0]) + ' lleva ' + millones(acumulado[iCorte]) + '; a ritmo parejo serían ' + millones(parejo[iCorte]) +
+          ': <strong>' + (dif >= 0 ? 'adelanto' : 'atraso') + ' de ' + millones(Math.abs(dif)) + '</strong> (' + (dif >= 0 ? '+' : '−') + pct(Math.abs(dif) / parejo[iCorte]) + ')';
+      } else {
+        var peor = null;
+        acumulado.forEach(function (v, i) { if (v != null && v < parejo[i] && (!peor || parejo[i] - v > peor.dif)) peor = { i: i, dif: parejo[i] - v }; });
+        vsParejo = peor
+          ? 'Mayor atraso contra el ritmo parejo: <strong>' + millones(peor.dif) + ' el ' + fechaCorta(serie[peor.i][0]) + '</strong> (llevaba ' +
+            pct(acumulado[peor.i] / parejo[peor.i]) + ' de lo esperado a esa fecha)'
+          : 'Siempre por encima del ritmo parejo';
+      }
+    }
+
+    // Concentración de fin de mes: solo meses completos y cerrados del período.
+    var claves = estado.local ? [estado.local] : null;
+    var cerrados = (c.meses || [c.mes]).filter(function (m) {
+      return (!c.ini || (c.ini <= m + '-01' && c.fin >= finDeMes(m))) && !calcularMes(m).abierto;
+    });
+    var conc = cerrados.map(function (m) {
+      return concentracion(m, claves || calcularMes(m).filas.map(function (f) { return f.clave; }));
+    }).filter(Boolean);
+    var textoConc = '';
+    if (conc.length === 1) {
+      textoConc = 'Últimos ' + DIAS_CIERRE + ' días del mes: <strong>' + pct(conc[0].pct) + ' de la venta</strong> (parejo ≈ ' + pct(DIAS_CIERRE / conc[0].n) +
+        ') · llegó al 50% de la venta el <strong>día ' + conc[0].dia50 + '</strong> (parejo ≈ día ' + Math.ceil(conc[0].n / 2) + ')';
+    } else if (conc.length > 1) {
+      var sFin = 0, sTot = 0, sN = 0;
+      conc.forEach(function (x) { sFin += x.fin; sTot += x.total; sN += x.n; });
+      textoConc = 'Últimos ' + DIAS_CIERRE + ' días de cada mes: <strong>' + pct(sFin / sTot) + ' de la venta</strong> en promedio (parejo ≈ ' +
+        pct(DIAS_CIERRE * conc.length / sN) + ')';
+    }
 
     // fem: "la Meta alcanzada" / "el Súper alcanzado".
     var texto = function (nombre, fem, cr, obj) {
@@ -425,7 +503,8 @@
       return nombre + ' <strong>no alcanzad' + o + '</strong>' + (conProy ? ' ni con la proyección' : '') + ': ' + pct(alFinal / obj) + ' (faltan ' + millones(Math.max(0, obj - alFinal)) + ')';
     };
     $('nota-ritmo').innerHTML = esc(a.nombre.replace(/^./, function (x) { return x.toUpperCase(); })) + ' · ' + esc(etiquetaPeriodo()) +
-      '<br>' + texto('Meta', true, cMeta, a.meta) + ' · ' + texto('Súper', false, cSuper, a.super);
+      '<br>' + texto('Meta', true, cMeta, a.meta) + ' · ' + texto('Súper', false, cSuper, a.super) +
+      (vsParejo ? '<br>' + vsParejo : '') + (textoConc ? '<br>' + textoConc : '');
   }
 
   function renderDiaria(c) {
@@ -673,6 +752,55 @@
     $('panel-mapa').hidden = false;
   }
 
+  // Semáforo de concentración: % de la venta del mes hecho en los últimos 7 días (parejo ≈ 23%).
+  var ESCALA_CONC = [
+    { hasta: 0.25, fondo: '#1f8a3b', texto: '#ffffff', lbl: 'hasta 25% · parejo' },
+    { hasta: 0.30, fondo: '#f7c948', texto: '#1a1a19', lbl: '25–30%' },
+    { hasta: 0.35, fondo: '#f08a3c', texto: '#1a1a19', lbl: '30–35%' },
+    { hasta: Infinity, fondo: '#d03b3b', texto: '#ffffff', lbl: 'más de 35% · hockey stick' }
+  ];
+  function colorConc(v) { return ESCALA_CONC.filter(function (e) { return v <= e.hasta; })[0]; }
+
+  /** Cuadro locales × meses cerrados con la concentración de la venta en los últimos 7 días. */
+  function renderConcentracion() {
+    var d = estado.datos;
+    var calc = d.meses.map(function (m) { return calcularMes(m.mes); }).filter(function (c) { return !c.abierto; });
+    if (!calc.length) { $('panel-conc').hidden = true; return; }
+    // Mismo orden que el cuadro de cumplimiento (venta del último mes de la planilla).
+    var orden = {}, locales = {};
+    calcularMes(d.meses[d.meses.length - 1].mes).filas.forEach(function (f) { orden[f.clave] = f.venta; });
+    calc.forEach(function (c) { c.filas.forEach(function (f) { if (!locales[f.clave]) locales[f.clave] = f.nombre; }); });
+    var claves = Object.keys(locales).sort(function (a, b) { return (orden[b] || 0) - (orden[a] || 0); });
+    calc = calc.slice().reverse();
+
+    var celda = function (titulo, mes, x) {
+      if (!x) return '<td class="celda">–</td>';
+      var col = colorConc(x.pct);
+      return '<td class="celda" style="background:' + col.fondo + ';color:' + col.texto + '" data-tip="' +
+        esc('<strong>' + titulo + ' · ' + nombreMes(mes) + '</strong>Últimos ' + DIAS_CIERRE + ' días: ' + millones(x.fin) + ' de ' + millones(x.total) +
+          ' (' + pct(x.pct) + ')<br>Llegó al 50% de la venta el día ' + x.dia50 + ' de ' + x.n) +
+        '">' + pct(x.pct).replace(',0%', '%') + '</td>';
+    };
+    var html = '<thead><tr><th class="izq" scope="col">Local</th>' + calc.map(function (c) {
+      return '<th scope="col">' + nombreMes(c.mes, true) + '</th>';
+    }).join('') + '</tr></thead><tbody>';
+    claves.forEach(function (k) {
+      html += '<tr><td class="izq">' + esc(locales[k]) + '</td>' + calc.map(function (c) {
+        var esta = c.filas.some(function (f) { return f.clave === k; });
+        return celda(locales[k], c.mes, esta ? concentracion(c.mes, [k]) : null);
+      }).join('') + '</tr>';
+    });
+    var nombreGrupo = grupoTexto().replace(/^./, function (x) { return x.toUpperCase(); });
+    html += '</tbody><tfoot><tr><td class="izq">Total</td>' + calc.map(function (c) {
+      return celda(nombreGrupo, c.mes, concentracion(c.mes, c.filas.map(function (f) { return f.clave; })));
+    }).join('') + '</tr></tfoot>';
+    $('tabla-conc').innerHTML = html;
+    $('escala-conc').innerHTML = ESCALA_CONC.map(function (e) {
+      return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px"><i style="background:' + e.fondo + '"></i>' + e.lbl + '</span>';
+    }).join('');
+    $('panel-conc').hidden = false;
+  }
+
   // ---------- Controles ----------
   function llenarLocales() {
     var c = calcularMes(estado.mes);
@@ -704,15 +832,17 @@
     $('btn-actualizar').addEventListener('click', cargar);
 
     var tip = $('tooltip');
-    $('tabla-mapa').addEventListener('mousemove', function (e) {
-      var td = e.target.closest('td[data-tip]');
-      if (!td) { tip.hidden = true; return; }
-      tip.innerHTML = td.getAttribute('data-tip');
-      tip.hidden = false;
-      var x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
-      tip.style.left = x + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+    ['tabla-mapa', 'tabla-conc'].forEach(function (id) {
+      $(id).addEventListener('mousemove', function (e) {
+        var td = e.target.closest('td[data-tip]');
+        if (!td) { tip.hidden = true; return; }
+        tip.innerHTML = td.getAttribute('data-tip');
+        tip.hidden = false;
+        var x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+        tip.style.left = x + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+      });
+      $(id).addEventListener('mouseleave', function () { tip.hidden = true; });
     });
-    $('tabla-mapa').addEventListener('mouseleave', function () { tip.hidden = true; });
 
     if (window.matchMedia) {
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { if (estado.datos) render(); });
