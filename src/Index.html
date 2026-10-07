@@ -45,14 +45,30 @@
   </div>
 
   <nav class="filtros" aria-label="Filtros">
-    <label class="campo">
-      <span>Desde</span>
-      <select id="f-desde"></select>
-    </label>
-    <label class="campo">
-      <span>Hasta</span>
-      <select id="f-mes"></select>
-    </label>
+    <div class="campo campo-fecha">
+      <span id="lbl-fecha">Fecha</span>
+      <button type="button" class="fecha-btn" id="f-fecha" aria-haspopup="dialog" aria-expanded="false" aria-controls="fecha-pop">…</button>
+      <div class="fecha-pop" id="fecha-pop" role="dialog" aria-label="Elegir período" hidden>
+        <div class="fecha-opciones" id="fecha-opciones">
+          <button type="button" data-p="hoy">Hoy</button>
+          <button type="button" data-p="ayer">Ayer</button>
+          <button type="button" data-p="7">Últimos 7 días</button>
+          <button type="button" data-p="30">Últimos 30 días</button>
+          <button type="button" data-p="mes">Este mes</button>
+          <button type="button" data-p="mes-ant">Último mes</button>
+          <button type="button" data-p="anio">Este año</button>
+          <button type="button" data-p="pers">Período personalizado</button>
+        </div>
+        <div class="fecha-pers" id="fecha-pers" hidden>
+          <label>Desde <input type="date" id="f-ini"></label>
+          <label>Hasta <input type="date" id="f-fin"></label>
+        </div>
+        <div class="fecha-acciones">
+          <button type="button" class="fecha-ok" id="fecha-ok">OK</button>
+          <button type="button" class="fecha-limpiar" id="fecha-limpiar">Limpiar</button>
+        </div>
+      </div>
+    </div>
     <div class="campo">
       <span id="lbl-grupo">Grupo</span>
       <div class="segmentado" role="radiogroup" aria-labelledby="lbl-grupo" id="f-grupo">

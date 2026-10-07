@@ -2,7 +2,8 @@
 (function () {
   'use strict';
 
-  var estado = { datos: null, mes: null, desde: null, grupo: 'propio', local: '', orden: { col: 'venta', dir: -1 }, vsMapa: 'super' };
+  // ini / fin: período elegido en el filtro Fecha (AAAA-MM-DD). desde / mes: sus meses (los usan las otras vistas).
+  var estado = { datos: null, preset: 'mes', ini: null, fin: null, mes: null, desde: null, grupo: 'propio', local: '', orden: { col: 'venta', dir: -1 }, vsMapa: 'super' };
   var graficos = {};
   if (window.Chart) {
     Chart.defaults.font.family = 'Montserrat, system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -21,6 +22,8 @@
     return corto ? n.slice(0, 3).replace(/^./, function (c) { return c.toUpperCase(); }) : n + ' ' + mes.slice(0, 4);
   }
   function fechaCorta(iso) { return +iso.slice(8, 10) + '/' + +iso.slice(5, 7); }
+  function fechaLarga(iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4); }
+  function finDeMes(mes) { return mes + '-' + diasDelMes(mes); }
   function diasDelMes(mes) { return new Date(+mes.slice(0, 4), +mes.slice(5, 7), 0).getDate(); }
   function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -80,8 +83,55 @@
     var meses = estado.datos.meses.map(function (m) { return m.mes; })
       .filter(function (m) { return m >= (desde || hasta) && m <= hasta; });
     if (meses.length <= 1) return calcularMes(hasta);
-    var cs = meses.map(calcularMes), ult = cs[cs.length - 1];
-    var porClave = {}, orden = [];
+    var c = sumarMeses(meses.map(calcularMes));
+    c.mes = hasta; c.desde = meses[0]; c.rango = true; c.meses = meses;
+    return c;
+  }
+
+  function textoRango(c) {
+    var anio = c.mes.slice(0, 4);
+    return nombreMes(c.desde, true) + (c.desde.slice(0, 4) !== anio ? ' ' + c.desde.slice(0, 4) : '') + ' a ' + nombreMes(c.mes, true) + ' ' + anio;
+  }
+
+  /**
+   * Período del filtro Fecha (ini → fin, por día). Los meses completos se toman tal cual de la planilla
+   * (con proyección si es el mes en curso). En los meses parciales la venta es la suma de los días del
+   * período y la Meta / Súper se prorratean por los días con datos (Meta del mes × días ÷ días del mes).
+   */
+  function calcularPeriodo(ini, fin) {
+    var d = estado.datos;
+    var meses = d.meses.map(function (m) { return m.mes; }).filter(function (m) { return m >= ini.slice(0, 7) && m <= fin.slice(0, 7); });
+    var completo = function (m) { return ini <= m + '-01' && fin >= finDeMes(m); };
+    var parcial = meses.some(function (m) { return !completo(m); });
+    var c;
+    if (!parcial) c = calcularRango(meses[0], meses[meses.length - 1]);
+    else {
+      var cs = meses.map(function (m) {
+        var cm = calcularMes(m);
+        if (completo(m)) return cm;
+        var a = ini > m + '-01' ? ini : m + '-01';
+        var b = fin < finDeMes(m) ? fin : finDeMes(m);
+        // La Meta se prorratea solo por los días que ya tienen datos (no los futuros).
+        var bMeta = d.actualizado && d.actualizado < b ? d.actualizado : b;
+        var dias = bMeta >= a ? (isoAUTC(bMeta) - isoAUTC(a)) / 864e5 + 1 : 0;
+        var factor = dias / cm.nDias;
+        var filas = cm.filas.map(function (f) {
+          var venta = 0;
+          (cm.diario[f.clave] || []).forEach(function (p) { if (p[0] >= a && p[0] <= b) venta += p[1]; });
+          return { nombre: f.nombre, clave: f.clave, tipo: f.tipo, venta: venta, meta: f.meta * factor, super: f.super * factor, proy: venta };
+        });
+        return { filas: filas, abierto: false };
+      });
+      c = sumarMeses(cs);
+      c.mes = meses[meses.length - 1]; c.desde = meses[0]; c.meses = meses; c.rango = true;
+    }
+    c.parcial = parcial; c.ini = ini; c.fin = fin;
+    return c;
+  }
+
+  /** Suma por local varios meses ya calculados (filas con venta, meta, súper y proyección). */
+  function sumarMeses(cs) {
+    var ult = cs[cs.length - 1], porClave = {}, orden = [];
     cs.forEach(function (c) {
       c.filas.forEach(function (f) {
         var a = porClave[f.clave];
@@ -101,13 +151,16 @@
       return a;
     });
     filas.forEach(function (f) { f.part = total.venta ? f.venta / total.venta : 0; });
-    return { mes: hasta, desde: meses[0], rango: true, meses: meses, abierto: ult.abierto, nDias: ult.nDias,
-      transcurridos: ult.transcurridos, restantes: ult.restantes, filas: filas, total: total, diario: ult.diario };
+    return { abierto: ult.abierto, nDias: ult.nDias, transcurridos: ult.transcurridos, restantes: ult.restantes,
+      filas: filas, total: total, diario: ult.diario };
   }
 
-  function textoRango(c) {
-    var anio = c.mes.slice(0, 4);
-    return nombreMes(c.desde, true) + (c.desde.slice(0, 4) !== anio ? ' ' + c.desde.slice(0, 4) : '') + ' a ' + nombreMes(c.mes, true) + ' ' + anio;
+  var PRESETS = { hoy: 'Hoy', ayer: 'Ayer', '7': 'Últimos 7 días', '30': 'Últimos 30 días', mes: 'Este mes', 'mes-ant': 'Último mes', anio: 'Este año', pers: 'Período personalizado' };
+
+  /** Texto del período elegido, p. ej. "Últimos 7 días (30/09 al 06/10/2026)". */
+  function etiquetaPeriodo() {
+    var fechas = estado.ini === estado.fin ? fechaLarga(estado.ini) : fechaLarga(estado.ini).slice(0, estado.ini.slice(0, 4) === estado.fin.slice(0, 4) ? 5 : 10) + ' al ' + fechaLarga(estado.fin);
+    return estado.preset === 'pers' ? fechas : PRESETS[estado.preset] + ' (' + fechas + ')';
   }
 
   function estadoLocal(f, abierto) {
@@ -122,7 +175,7 @@
 
   // ---------- Render ----------
   function render() {
-    var c = calcularRango(estado.desde, estado.mes), cm = c.rango ? calcularMes(estado.mes) : c;
+    var c = calcularPeriodo(estado.ini, estado.fin), cm = calcularMes(estado.mes);
     renderKpis(c);
     renderRanking(c);
     renderRitmo(cm);
@@ -137,7 +190,8 @@
   function avisarFiltros(c) {
     var sel = c.filas.filter(function (f) { return f.clave === estado.local; })[0];
     document.dispatchEvent(new CustomEvent('definit:filtros', { detail: {
-      mes: estado.mes, desde: estado.desde || estado.mes, grupo: estado.grupo, local: estado.local, localNombre: sel ? sel.nombre : '',
+      mes: estado.mes, desde: estado.desde || estado.mes, ini: estado.ini, fin: estado.fin,
+      parcial: calcularPeriodo(estado.ini, estado.fin).parcial, periodo: etiquetaPeriodo(), grupo: estado.grupo, local: estado.local, localNombre: sel ? sel.nombre : '',
       grupoTexto: grupoTexto(), clavesGrupo: c.filas.map(function (f) { return f.clave; }),
       nombres: c.filas.reduce(function (o, f) { o[f.clave] = f.nombre; return o; }, {})
     } }));
@@ -152,15 +206,23 @@
       // Escala 0–150%; la marca vertical es el 100%.
       return '<div class="medidor" aria-hidden="true"><i style="width:' + Math.min(100, (v || 0) / 1.5 * 100) + '%"></i><b style="left:' + (100 / 1.5) + '%"></b></div>';
     };
+    var conDatos = function () {
+      // Días del período con venta cargada (para el promedio diario de un período parcial).
+      return serieDiaria(c).filter(function (p) { return p[1]; }).length;
+    };
     var tiles = [
-      c.rango
+      c.parcial
+        ? { cls: 'hero', label: 'Venta · ' + etiquetaPeriodo(), valor: millones(t.venta), det: c.filas.length + ' locales' }
+        : c.rango
         ? { cls: 'hero', label: 'Venta acumulada · ' + textoRango(c), valor: millones(t.venta),
             det: c.filas.length + ' locales · ' + c.meses.length + ' meses' + (c.abierto ? ' · ' + nombreMes(c.mes, true).toLowerCase() + ' al día ' + c.transcurridos : '') }
         : { cls: 'hero', label: 'Venta ' + (c.abierto ? 'al ' + c.transcurridos + '/' + +c.mes.slice(5, 7) : 'del mes'), valor: millones(t.venta),
             det: c.filas.length + ' locales · ' + (c.abierto ? 'día ' + c.transcurridos + ' de ' + c.nDias : 'mes cerrado') },
-      { label: 'Cumplimiento de Meta', valor: pct(t.venta / t.meta), det: 'Meta ' + millones(t.meta), extra: medidor(t.venta / t.meta) },
-      { label: 'Cumplimiento de Súper', valor: pct(t.venta / t.super), det: 'Súper ' + millones(t.super), extra: medidor(t.venta / t.super) },
-      c.abierto
+      { label: 'Cumplimiento de Meta', valor: pct(t.venta / t.meta), det: 'Meta ' + millones(t.meta) + (c.parcial ? ' (proporcional a los días)' : ''), extra: medidor(t.venta / t.meta) },
+      { label: 'Cumplimiento de Súper', valor: pct(t.venta / t.super), det: 'Súper ' + millones(t.super) + (c.parcial ? ' (proporcional a los días)' : ''), extra: medidor(t.venta / t.super) },
+      c.parcial
+        ? (function () { var n = conDatos(); return { label: 'Promedio por día', valor: millones(n ? t.venta / n : 0), det: n + (n === 1 ? ' día' : ' días') + ' con venta cargada' }; })()
+        : c.abierto
         ? { label: c.rango ? 'Proyección del período' : 'Proyección de cierre', valor: millones(t.proy), det: pct(t.proy / t.meta) + ' de la Meta · ' + pct(t.proy / t.super) + ' del Súper' }
         : { label: c.rango ? 'Cierre del período' : 'Cierre del mes', valor: millones(t.venta), det: c.rango ? 'Meses cerrados' : 'Mes cerrado' },
       { label: 'Locales en Meta', valor: enMeta + ' de ' + conMeta, det: enSuper + ' también en Súper' }
@@ -233,7 +295,9 @@
       '<tbody>' + filas.map(function (f) { return '<tr class="' + estadoLocal(f, c.abierto).fila + '">' + cols.map(function (col) { return celda[col.id](f); }).join('') + '</tr>'; }).join('') + '</tbody>' +
       '<tfoot><tr>' + cols.map(function (col) { return '<td' + (col.izq ? ' class="izq"' : '') + '>' + pie[col.id] + '</td>'; }).join('') + '</tr></tfoot>';
 
-    $('nota-ranking').textContent = (c.rango ? 'Acumulado ' + textoRango(c) + '. ' : '') + (c.abierto
+    $('nota-ranking').textContent = c.parcial
+      ? etiquetaPeriodo() + '. Meta y Súper proporcionales a los días con datos del período (Meta del mes × días ÷ días del mes). La barra marca el 100% de la Meta.'
+      : (c.rango ? 'Acumulado ' + textoRango(c) + '. ' : '') + (c.abierto
       ? 'Proyección = venta a la fecha ÷ ' + c.transcurridos + ' días × ' + c.nDias + ' días. Necesario/día = lo que falta para el Súper ÷ ' + c.restantes + ' días restantes. La barra marca el 100% de la Meta.'
       : 'Mes cerrado. La barra de % Meta marca el 100%.');    $('panel-ranking').hidden = false;
   }
@@ -274,7 +338,9 @@
         (diario[k] || []).forEach(function (p) { if (p[0] in porFecha) porFecha[p[0]] += p[1]; });
       });
     });
-    return Object.keys(porFecha).sort().map(function (f) { return [f, porFecha[f]]; });
+    return Object.keys(porFecha).sort()
+      .filter(function (f) { return !c.ini || (f >= c.ini && f <= c.fin); })
+      .map(function (f) { return [f, porFecha[f]]; });
   }
 
   function alcance(c) {
@@ -322,7 +388,7 @@
   function renderDiaria(c) {
     var serie = serieDiaria(c), a = alcance(c);
     // Sin barras después del último día con ventas del mes en curso.
-    var corte = c.abierto ? c.mes + '-' + (c.transcurridos < 10 ? '0' : '') + c.transcurridos : '9999';
+    var corte = c.abierto ? c.mes + '-' + (c.transcurridos < 10 ? '0' : '') + c.transcurridos : (estado.datos.actualizado || '9999');
     var datos = serie.map(function (p) { return p[0] <= corte ? p[1] : null; });
     var op = baseOpciones();
     op.interaction = { mode: 'nearest', axis: 'x', intersect: false };
@@ -340,7 +406,7 @@
     });
     var conVenta = datos.filter(function (v) { return v; });
     var prom = conVenta.length ? conVenta.reduce(function (x, y) { return x + y; }, 0) / conVenta.length : 0;
-    $('nota-diaria').textContent = a.nombre.replace(/^./, function (x) { return x.toUpperCase(); }) + (c.rango ? ' · ' + textoRango(c) : '') +
+    $('nota-diaria').textContent = a.nombre.replace(/^./, function (x) { return x.toUpperCase(); }) + ' · ' + etiquetaPeriodo() +
       ' · promedio ' + millones(prom) + ' por día con venta';
   }
 
@@ -447,7 +513,7 @@
     var nombre = estado.local ? alcance(calcularMes(estado.mes)).nombre : grupoTexto();
     var ult = semanas[semanas.length - 1];
     $('nota-semanal').textContent = nombre.replace(/^./, function (x) { return x.toUpperCase(); }) +
-      ' · semanas de lunes a domingo, todo el año (no depende del filtro de Mes). La tabla muestra las últimas 12.' +
+      ' · semanas de lunes a domingo, todo el año (no depende del filtro de Fecha). La tabla muestra las últimas 12.' +
       (ult.parcial ? ' La semana en curso tiene ventas de ' + DIAS_CORTOS[0] + ' a ' + DIAS_CORTOS[ult.nDias - 1] +
         ' y se compara contra esos mismos días de la semana anterior.' : '');
   }
@@ -562,19 +628,7 @@
   }
 
   function iniciarControles() {
-    // Hasta = el mes que se analiza; Desde = inicio del acumulado (igual a Hasta para ver un solo mes).
-    $('f-mes').addEventListener('change', function (e) {
-      var antes = estado.mes;
-      estado.mes = e.target.value;
-      if (!estado.desde || estado.desde === antes || estado.desde > estado.mes) estado.desde = estado.mes;
-      $('f-desde').value = estado.desde;
-      llenarLocales(); render();
-    });
-    $('f-desde').addEventListener('change', function (e) {
-      estado.desde = e.target.value;
-      if (estado.desde > estado.mes) { estado.mes = estado.desde; $('f-mes').value = estado.mes; llenarLocales(); }
-      render();
-    });
+    iniciarFiltroFecha();
     $('f-local').addEventListener('change', function (e) { estado.local = e.target.value; render(); });
     $('f-grupo').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
@@ -608,12 +662,87 @@
     }
   }
 
+  // ---------- Filtro Fecha ----------
+  function hoyIso() { var x = new Date(); return x.getFullYear() + '-' + ('0' + (x.getMonth() + 1)).slice(-2) + '-' + ('0' + x.getDate()).slice(-2); }
+
+  /** [ini, fin] de un atajo, contado desde hoy. */
+  function rangoPreset(p) {
+    var hoy = hoyIso(), mes = hoy.slice(0, 7);
+    var mesAnt = utcAIso(isoAUTC(mes + '-01') - 864e5).slice(0, 7);
+    switch (p) {
+      case 'hoy': return [hoy, hoy];
+      case 'ayer': return [sumarDiasIso(hoy, -1), sumarDiasIso(hoy, -1)];
+      case '7': return [sumarDiasIso(hoy, -6), hoy];
+      case '30': return [sumarDiasIso(hoy, -29), hoy];
+      case 'mes-ant': return [mesAnt + '-01', finDeMes(mesAnt)];
+      case 'anio': return [hoy.slice(0, 4) + '-01-01', finDeMes(mes)];
+      default: return [mes + '-01', finDeMes(mes)];
+    }
+  }
+
+  /** Aplica un período: lo ajusta a los meses que tiene la planilla y vuelve a dibujar. */
+  function aplicarPeriodo(p, ini, fin) {
+    var meses = estado.datos.meses.map(function (m) { return m.mes; });
+    var min = meses[0] + '-01', max = finDeMes(meses[meses.length - 1]);
+    if (ini > fin) { var t = ini; ini = fin; fin = t; }
+    if (ini < min) ini = min;
+    if (fin > max) fin = max;
+    if (ini > fin) { ini = fin.slice(0, 7) + '-01'; } // período fuera de la planilla: el mes más cercano
+    estado.preset = p; estado.ini = ini; estado.fin = fin;
+    estado.desde = ini.slice(0, 7); estado.mes = fin.slice(0, 7);
+    $('f-fecha').textContent = ini === fin ? fechaLarga(ini) : fechaLarga(ini) + ' – ' + fechaLarga(fin);
+    $('lbl-fecha').textContent = p === 'pers' ? 'Fecha' : 'Fecha · ' + PRESETS[p];
+    $('f-ini').min = $('f-fin').min = min; $('f-ini').max = $('f-fin').max = max;
+    llenarLocales(); render();
+  }
+
+  function iniciarFiltroFecha() {
+    var pop = $('fecha-pop'), btn = $('f-fecha'), elegido = null;
+    var marcar = function (p) {
+      elegido = p;
+      Array.prototype.forEach.call($('fecha-opciones').querySelectorAll('button'), function (b) { b.setAttribute('aria-pressed', String(b.dataset.p === p)); });
+      $('fecha-pers').hidden = p !== 'pers';
+    };
+    var cerrar = function () { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', function () {
+      if (!estado.datos) return;
+      if (!pop.hidden) { cerrar(); return; }
+      $('f-ini').value = estado.ini; $('f-fin').value = estado.fin;
+      marcar(estado.preset);
+      pop.hidden = false; btn.setAttribute('aria-expanded', 'true');
+    });
+    $('fecha-opciones').addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      marcar(b.dataset.p);
+      if (b.dataset.p === 'pers') $('f-ini').focus();
+    });
+    // Doble clic en un atajo = elegir y aplicar.
+    $('fecha-opciones').addEventListener('dblclick', function (e) {
+      var b = e.target.closest('button'); if (!b || b.dataset.p === 'pers') return;
+      var r = rangoPreset(b.dataset.p); aplicarPeriodo(b.dataset.p, r[0], r[1]); cerrar();
+    });
+    $('fecha-ok').addEventListener('click', function () {
+      if (elegido === 'pers') {
+        if (!$('f-ini').value || !$('f-fin').value) { ($('f-ini').value ? $('f-fin') : $('f-ini')).focus(); return; }
+        aplicarPeriodo('pers', $('f-ini').value, $('f-fin').value);
+      } else {
+        var r = rangoPreset(elegido); aplicarPeriodo(elegido, r[0], r[1]);
+      }
+      cerrar(); btn.focus();
+    });
+    $('fecha-limpiar').addEventListener('click', function () {
+      var r = rangoPreset('mes'); aplicarPeriodo('mes', r[0], r[1]); cerrar(); btn.focus();
+    });
+    document.addEventListener('click', function (e) { if (!pop.hidden && !e.target.closest('.campo-fecha')) cerrar(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pop.hidden) { cerrar(); btn.focus(); } });
+  }
+
   function ordenar(e) {
     var th = e.target.closest('th[data-orden]'); if (!th) return;
     var col = th.getAttribute('data-orden');
     if (estado.orden.col === col) estado.orden.dir *= -1;
     else estado.orden = { col: col, dir: col === 'nombre' ? 1 : -1 };
-    renderRanking(calcularRango(estado.desde, estado.mes));
+    renderRanking(calcularPeriodo(estado.ini, estado.fin));
   }
 
   // ---------- Carga ----------
@@ -624,18 +753,8 @@
     google.script.run
       .withSuccessHandler(function (json) {
         var d = JSON.parse(json);
-        var mesPrevio = estado.mes;
         estado.datos = d;
         var meses = d.meses.map(function (m) { return m.mes; });
-        estado.mes = meses.indexOf(mesPrevio) >= 0 ? mesPrevio : meses[meses.length - 1];
-        if (meses.indexOf(estado.desde) < 0 || estado.desde > estado.mes) estado.desde = estado.mes;
-        var opciones = function (sel) {
-          return meses.slice().reverse().map(function (m) {
-            return '<option value="' + m + '"' + (m === sel ? ' selected' : '') + '>' + nombreMes(m).replace(/^./, function (x) { return x.toUpperCase(); }) + '</option>';
-          }).join('');
-        };
-        $('f-mes').innerHTML = opciones(estado.mes);
-        $('f-desde').innerHTML = opciones(estado.desde);
         // Mismo formato en las tres vistas: Fuente · actualizado · datos de … a …
         var act = d.actualizado ? d.actualizado.replace(/^(\d{4})-(\d{2})-(\d{2}).*/, '$3/$2/$1') : 's/d';
         $('fuente').textContent = 'Fuente: ' + (d.planilla || 'Facturación 2026') + ' · actualizado ' + act +
@@ -643,8 +762,9 @@
         $('estado').hidden = true;
         $('graficos-mes').hidden = false;
         $('panel-evolucion').hidden = false;
-        llenarLocales();
-        render();
+        // Al actualizar se mantiene el período elegido (los atajos se recalculan desde hoy).
+        var r = estado.preset === 'pers' && estado.ini ? [estado.ini, estado.fin] : rangoPreset(estado.preset);
+        aplicarPeriodo(estado.preset, r[0], r[1]);
         $('app').setAttribute('aria-busy', 'false');
         btn.disabled = false; btn.textContent = 'Actualizar';
       })

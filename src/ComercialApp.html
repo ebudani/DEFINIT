@@ -111,6 +111,7 @@
       '. Se muestra ' + mesLargo(mes) + ', el último mes cerrado completo.');
     else if (!e[mes] && cerrados.length) avisos.push(mesLargo(mes).charAt(0).toUpperCase() + mesLargo(mes).slice(1) +
       ' todavía no está cerrado en el Reporte EERR: la cantidad de tickets son los cobros registrados.');
+    if (f.parcial) avisos.push('Los indicadores comerciales son mensuales: para ' + f.periodo + ' se muestra ' + mesLargo(mes) + ' completo.');
     if (f.grupo === 'todos' && !f.local && locales.some(function (l) { return d.equivalencias[l] == null; })) {
       avisos.push('"Todos" incluye ' + locales.filter(function (l) { return d.equivalencias[l] == null; }).join(', ') + ', que figura en el sistema de cobros pero no en Facturación. Las franquicias no están en este archivo.');
     }

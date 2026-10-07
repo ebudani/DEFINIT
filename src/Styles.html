@@ -156,6 +156,36 @@
   .segmentado button[aria-checked="true"] { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
   select:focus-visible, .segmentado button:focus-visible, .btn:focus-visible, th[data-orden]:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
+  /* Filtro de fecha: botón con el período y panel con atajos. */
+  .campo-fecha { position: relative; }
+  .fecha-btn {
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--page); text-align: left;
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 28px 6px 8px; min-width: 210px; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
+  }
+  .fecha-btn[aria-expanded="true"] { border-color: var(--brand); }
+  .fecha-btn:focus-visible, .fecha-pop button:focus-visible, .fecha-pop input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .fecha-pop {
+    position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 6px; width: 240px; max-width: calc(100vw - 32px);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+  .fecha-opciones { display: flex; flex-direction: column; gap: 6px; }
+  .fecha-opciones button {
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--page); text-align: left;
+    border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; cursor: pointer;
+  }
+  .fecha-opciones button:hover { border-color: var(--brand); }
+  .fecha-opciones button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
+  .fecha-pers { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--ink-2); }
+  .fecha-pers label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .fecha-pers input { font: inherit; font-size: 13px; color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+  .fecha-acciones { display: flex; gap: 8px; margin-top: 10px; }
+  .fecha-acciones button { font: inherit; font-size: 12.5px; font-weight: 600; border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+  .fecha-ok { background: var(--brand); color: var(--brand-ink); border: 1px solid var(--brand); }
+  .fecha-limpiar { background: var(--surface); color: var(--ink); border: 1px solid var(--border); }
+
   .estado { color: var(--ink-2); padding: 40px 0; text-align: center; }
   .estado.error { color: var(--critical-text); }
 
@@ -264,7 +294,8 @@
 
     /* Filtros compactos: Mes y Local en una fila, Grupo abajo */
     .filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; padding: 10px; margin-bottom: 12px; }
-    .filtros .campo:nth-child(3), .filtros .campo:nth-child(4) { grid-column: 1 / -1; }
+    .filtros .campo { grid-column: 1 / -1; }
+    .fecha-btn { width: 100%; min-width: 0; font-size: 12.5px; }
     .segmentado { display: grid; grid-template-columns: repeat(3, 1fr); }
     .segmentado button { padding: 6px 4px; }
     select { min-width: 0; width: 100%; font-size: 12.5px; padding: 6px; }

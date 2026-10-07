@@ -119,6 +119,8 @@
       avisos.push('Los clientes por período se están calculando (el procesador los actualiza dentro de la hora). Mientras tanto se muestra ' + mesLargo(hasta) + '.');
       desde = hasta;
     }
+    if (f.parcial) avisos.push('El análisis de clientes es mensual: para ' + f.periodo + ' se muestra' +
+      (desde === hasta ? ' ' + mesLargo(hasta) + ' completo.' : 'n los meses completos de ' + mesLargo(desde) + ' a ' + mesLargo(hasta) + '.'));
     if (desde === primero) avisos.push('Como el archivo empieza en ' + mesLargo(primero) + ', en ese mes todos los clientes figuran como nuevos.');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
