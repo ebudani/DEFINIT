@@ -16,7 +16,7 @@
 var CARPETA_ID = '1rqvtYLmOmLqtuvovHk4jIZJIZVhg3TpB';
 var NOMBRE_BASE = 'DEFINIT – Base comercial';
 // Subir este número cuando cambie lo que se calcula: fuerza a reprocesar los archivos.
-var VERSION_CALCULO = 3;
+var VERSION_CALCULO = 4;
 
 // Qué archivo de la carpeta alimenta cada pestaña de la base.
 var FUENTES = [
@@ -270,7 +270,7 @@ function procesarSesiones(hojas) {
     sesiones: /^n[uú]mero de sesiones$/i, cortesia: /cortes[íi]a/i, bruto: /^v\.?\s*bruto$/i,
     desc: /^v\.?\s*descuento$/i, neto: /^v\.?\s*neto$/i, minutos: /^minutos totales$/i,
     'cliente?': /^cliente$/i, 'paquete?': /^paquete$/i });
-  var tablas = { sesiones: agregarSesiones(t) };
+  var tablas = { sesiones: agregarSesiones(t), cierre: agregarCierre(t) };
   if (t.col['cliente?']) {
     var c = agregarClientes(t);
     tablas.clientes = c.clientes;
@@ -293,6 +293,30 @@ function agregarSesiones(t) {
       : { items: 1, sesiones: ses, minutos: min, bruto: num(c.bruto[i]), desc: num(c.desc[i]), neto: num(c.neto[i]) });
   }
   return aFilas(mapa, ['mes', 'local', 'items', 'sesiones', 'minutos', 'sesiones_cortesia', 'minutos_cortesia', 'bruto', 'desc', 'neto']);
+}
+
+/**
+ * Concentración de fin de mes: por mes y local, venta bruta, descuento y neta de los últimos 7 días
+ * del mes contra el resto, para ver si el cierre se vende con más descuento ("hockey stick").
+ */
+function agregarCierre(t) {
+  var mapa = {}, c = t.col;
+  for (var i = 0; i < t.n; i++) {
+    var dia = diaDe(c.fecha[i]), local = nombreLocal(c.local[i]);
+    if (!dia || !local) continue;
+    var cortesia = c.cortesia[i] === true || /^(true|verdadero|s[ií]|1)$/i.test(String(c.cortesia[i]).trim());
+    if (cortesia) continue;
+    var mes = dia.slice(0, 7);
+    var n = new Date(+mes.slice(0, 4), +mes.slice(5, 7), 0).getDate();
+    var sufijo = +dia.slice(8, 10) > n - 7 ? '_ult7' : '_resto';
+    var campos = {};
+    campos['items' + sufijo] = 1;
+    campos['bruto' + sufijo] = num(c.bruto[i]);
+    campos['desc' + sufijo] = num(c.desc[i]);
+    campos['neto' + sufijo] = num(c.neto[i]);
+    acumular(mapa, mes + '|' + local, campos);
+  }
+  return aFilas(mapa, ['mes', 'local', 'items_resto', 'bruto_resto', 'desc_resto', 'neto_resto', 'items_ult7', 'bruto_ult7', 'desc_ult7', 'neto_ult7']);
 }
 
 /** Tipo de paquete a partir del nombre ("AXILAS MUJER - CORTESÍA 3 SESIONES", "BOZO MUJER MEDIO PAQUETE"…). */
