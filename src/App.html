@@ -652,7 +652,21 @@
       });
       html += '</tr>';
     });
-    $('tabla-mapa').innerHTML = html + '</tbody>';
+    // Totales del grupo elegido: % de Meta y % de Súper de la suma de los locales, mes por mes.
+    var nombreGrupo = grupoTexto().replace(/^./, function (x) { return x.toUpperCase(); });
+    html += '</tbody><tfoot>' + [['Meta', 'meta'], ['Súper', 'super']].map(function (o) {
+      return '<tr class="total"><td class="izq">Total · % ' + o[0] + '</td>' + calc.map(function (c) {
+        var t = c.total, base = t[o[1]], v = base ? t.venta / base : null;
+        if (v == null) return '<td class="celda">–</td>';
+        var col = colorCelda(v);
+        return '<td class="celda" style="background:' + col.fondo + ';color:' + col.texto + '" data-tip="' +
+          esc('<strong>' + nombreGrupo + ' · ' + nombreMes(c.mes) + '</strong>Venta ' + millones(t.venta) + ' · ' + o[0] + ' ' + millones(base) +
+            (c.abierto ? '<br>Real a la fecha: ' + pct(v) + '<br>Proyectado al cierre: ' + millones(t.proy) + ' (' + pct(t.proy / base) + ')'
+              : '<br>' + pct(t.meta ? t.venta / t.meta : null) + ' de la Meta · ' + pct(t.super ? t.venta / t.super : null) + ' del Súper')) +
+          '">' + pct(v).replace(',0%', '%') + '</td>';
+      }).join('') + '</tr>';
+    }).join('') + '</tfoot>';
+    $('tabla-mapa').innerHTML = html;
     $('escala-mapa').innerHTML = ESCALA.slice().reverse().map(function (e) {
       return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px"><i style="background:' + colorCelda(e.hasta === Infinity ? 1.3 : e.hasta - 0.001).fondo + '"></i>' + e.lbl + '</span>';
     }).join('');
