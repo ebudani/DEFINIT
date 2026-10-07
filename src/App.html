@@ -178,7 +178,7 @@
     var c = calcularPeriodo(estado.ini, estado.fin), cm = calcularMes(estado.mes);
     renderKpis(c);
     renderRanking(c);
-    renderRitmo(cm);
+    renderRitmo(c);
     renderDiaria(c);
     renderSemanal();
     renderEvolucion();
@@ -344,45 +344,84 @@
   }
 
   function alcance(c) {
-    if (!estado.local) return { nombre: grupoTexto(), meta: c.total.meta, super: c.total.super };
+    if (!estado.local) return { nombre: grupoTexto(), meta: c.total.meta, super: c.total.super, proy: c.total.proy };
     var f = c.filas.filter(function (x) { return x.clave === estado.local; })[0];
-    return f ? { nombre: f.nombre, meta: f.meta, super: f.super } : { nombre: estado.local, meta: 0, super: 0 };
+    return f ? { nombre: f.nombre, meta: f.meta, super: f.super, proy: f.proy } : { nombre: estado.local, meta: 0, super: 0, proy: 0 };
   }
 
   function grupoTexto() {
     return { propio: 'locales propios', franquicia: 'franquicias', todos: 'todos los locales' }[estado.grupo];
   }
 
+  /**
+   * Progresión de venta: acumulado día a día del período elegido (grupo o local) contra la Meta y el
+   * Súper del período, marcando el día en que se cruzan. Si el período incluye el mes en curso, sigue
+   * con la proyección al ritmo actual y avisa qué día se cruzaría.
+   */
   function renderRitmo(c) {
     var serie = serieDiaria(c), a = alcance(c);
-    var hasta = c.transcurridos, acum = 0;
-    var etiquetas = serie.map(function (p) { return fechaCorta(p[0]); });
-    var acumulado = serie.map(function (p, i) { acum += p[1]; return i < hasta ? acum : null; });
-    var ventaAlCorte = hasta ? acumulado[hasta - 1] : 0;
-    var ritmo = hasta ? ventaAlCorte / hasta : 0;
-    var proyectado = serie.map(function (p, i) { return c.abierto && hasta && i >= hasta - 1 ? ventaAlCorte + ritmo * (i + 1 - hasta) : null; });
+    var ultimoDato = estado.datos.actualizado || c.fin;
+    var acum = 0;
+    var acumulado = serie.map(function (p) { acum += p[1]; return p[0] <= ultimoDato ? acum : null; });
+    var iCorte = -1;
+    acumulado.forEach(function (v, i) { if (v != null) iCorte = i; });
+    var ventaAlCorte = iCorte >= 0 ? acumulado[iCorte] : 0;
+    var faltan = serie.length - 1 - iCorte;
+    // Proyección hasta el fin del período (la misma de los indicadores: ritmo del mes en curso).
+    var conProy = c.abierto && faltan > 0 && a.proy > ventaAlCorte;
+    var paso = conProy ? (a.proy - ventaAlCorte) / faltan : 0;
+    var proyectado = serie.map(function (p, i) { return conProy && i >= iCorte ? ventaAlCorte + paso * (i - iCorte) : null; });
+
+    var cruce = function (obj) {
+      if (!obj) return null;
+      for (var i = 0; i < serie.length; i++) {
+        if (acumulado[i] != null && acumulado[i] >= obj) return { i: i, real: true };
+        if (acumulado[i] == null && proyectado[i] != null && proyectado[i] >= obj) return { i: i, real: false };
+      }
+      return null;
+    };
+    var cMeta = cruce(a.meta), cSuper = cruce(a.super);
+    var marca = function (cr, obj) { return serie.map(function (p, i) { return cr && i === cr.i ? obj : null; }); };
     var linea = function (v) { return serie.map(function () { return v; }); };
 
-    var s1 = css('--series-1'), ref = css('--ref'), muted = css('--muted');
+    var s1 = css('--series-1'), ref = css('--ref'), muted = css('--muted'), surface = css('--surface');
     var ds = [
       { label: 'Venta acumulada', data: acumulado, borderColor: s1, backgroundColor: css('--series-1-wash'), fill: 'origin', borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0 },
       { label: 'Proyección', data: proyectado, borderColor: s1, borderDash: [5, 4], borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, fill: false },
       { label: 'Meta', data: linea(a.meta), borderColor: ref, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0, fill: false },
-      { label: 'Súper', data: linea(a.super), borderColor: muted, borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0, pointHoverRadius: 0, fill: false }
+      { label: 'Súper', data: linea(a.super), borderColor: muted, borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0, pointHoverRadius: 0, fill: false },
+      { label: 'Cruza la Meta', data: marca(cMeta, a.meta), showLine: false, pointRadius: 7, pointHoverRadius: 8, pointBackgroundColor: ref, pointBorderColor: surface, pointBorderWidth: 2 },
+      { label: 'Cruza el Súper', data: marca(cSuper, a.super), showLine: false, pointRadius: 7, pointHoverRadius: 8, pointStyle: 'rectRot', pointBackgroundColor: muted, pointBorderColor: surface, pointBorderWidth: 2 }
     ];
-    if (!c.abierto) ds.splice(1, 1);
     var op = baseOpciones();
-    op.plugins.tooltip.callbacks = { label: function (ctx) { return ctx.raw == null ? null : ' ' + ctx.dataset.label + ': ' + millones(ctx.raw); } };
+    op.plugins.tooltip.callbacks = {
+      title: function (items) { return new Date(serie[items[0].dataIndex][0] + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }); },
+      label: function (ctx) {
+        if (ctx.raw == null) return null;
+        if (ctx.datasetIndex >= 4) return ' ' + ctx.dataset.label + (ctx.datasetIndex === 4 ? (cMeta.real ? '' : ' (proyectado)') : (cSuper.real ? '' : ' (proyectado)'));
+        return ' ' + ctx.dataset.label + ': ' + millones(ctx.raw);
+      }
+    };
     op.plugins.tooltip.filter = function (item) { return item.raw != null; };
-    dibujar('ch-ritmo', { type: 'line', data: { labels: etiquetas, datasets: ds } , options: op });
+    dibujar('ch-ritmo', { type: 'line', data: { labels: serie.map(function (p) { return fechaCorta(p[0]); }), datasets: ds }, options: op });
 
     $('leyenda-ritmo').innerHTML =
       '<span><i style="border-color:' + s1 + '"></i>Venta acumulada</span>' +
-      (c.abierto ? '<span><i class="punteada" style="border-color:' + s1 + '"></i>Proyección al ritmo actual</span>' : '') +
+      (conProy ? '<span><i class="punteada" style="border-color:' + s1 + '"></i>Proyección al ritmo actual</span>' : '') +
       '<span><i style="border-color:' + ref + '"></i>Meta ' + millones(a.meta) + '</span>' +
       '<span><i class="punteada" style="border-color:' + muted + '"></i>Súper ' + millones(a.super) + '</span>';
-    $('nota-ritmo').textContent = a.nombre.replace(/^./, function (x) { return x.toUpperCase(); }) + ' · ' + nombreMes(c.mes) +
-      (c.abierto && hasta ? ' · cierre proyectado ' + millones(ritmo * c.nDias) : '');
+
+    // fem: "la Meta alcanzada" / "el Súper alcanzado".
+    var texto = function (nombre, fem, cr, obj) {
+      var o = fem ? 'a' : 'o';
+      if (!obj) return 'Sin ' + nombre;
+      if (cr && cr.real) return nombre + ' alcanzad' + o + ' el <strong>' + fechaCorta(serie[cr.i][0]) + '</strong> (día ' + (cr.i + 1) + ' de ' + serie.length + ')';
+      if (cr) return nombre + ': al ritmo actual llegaría el <strong>' + fechaCorta(serie[cr.i][0]) + '</strong>';
+      var alFinal = conProy ? a.proy : ventaAlCorte;
+      return nombre + ' <strong>no alcanzad' + o + '</strong>' + (conProy ? ' ni con la proyección' : '') + ': ' + pct(alFinal / obj) + ' (faltan ' + millones(Math.max(0, obj - alFinal)) + ')';
+    };
+    $('nota-ritmo').innerHTML = esc(a.nombre.replace(/^./, function (x) { return x.toUpperCase(); })) + ' · ' + esc(etiquetaPeriodo()) +
+      '<br>' + texto('Meta', true, cMeta, a.meta) + ' · ' + texto('Súper', false, cSuper, a.super);
   }
 
   function renderDiaria(c) {
