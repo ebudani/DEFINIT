@@ -102,7 +102,7 @@
     <div class="grid-2" id="graficos-mes" hidden>
       <section class="panel">
         <div class="panel-head">
-          <h2>Progresión de venta</h2>
+          <h2 class="por-local" data-titulo="Progresión de venta">Progresión de venta</h2>
           <p class="nota" id="nota-ritmo"></p>
         </div>
         <div class="leyenda" id="leyenda-ritmo"></div>
@@ -110,7 +110,7 @@
       </section>
       <section class="panel">
         <div class="panel-head">
-          <h2>Venta diaria</h2>
+          <h2 class="por-local" data-titulo="Venta diaria">Venta diaria</h2>
           <p class="nota" id="nota-diaria"></p>
         </div>
         <div class="chart"><canvas id="ch-diaria" aria-label="Venta por día"></canvas></div>
@@ -119,7 +119,7 @@
 
     <section class="panel" id="panel-evolucion" hidden>
       <div class="panel-head">
-        <h2>Evolución mensual</h2>
+        <h2 class="por-local" data-titulo="Evolución mensual">Evolución mensual</h2>
         <p class="nota" id="nota-evolucion"></p>
       </div>
       <div class="leyenda" id="leyenda-evolucion"></div>
@@ -128,7 +128,7 @@
 
     <section class="panel" id="panel-semanal" hidden>
       <div class="panel-head">
-        <h2>Evolución por semanas</h2>
+        <h2 class="por-local" data-titulo="Evolución por semanas">Evolución por semanas</h2>
         <p class="nota" id="nota-semanal"></p>
       </div>
       <div class="leyenda" id="leyenda-semanal"></div>
@@ -166,10 +166,10 @@
       <p class="aviso" id="c-aviso" hidden></p>
       <section class="kpis kpis-4" id="c-kpis"></section>
       <div class="grid-2" id="c-graficos">
-        <section class="panel"><div class="panel-head"><h2>Ticket promedio (sin IVA)</h2><p class="nota" id="c-n-ticket"></p></div><div class="chart"><canvas id="c-ch-ticket"></canvas></div></section>
-        <section class="panel"><div class="panel-head"><h2>Cantidad de tickets</h2><p class="nota" id="c-n-ops"></p></div><div class="chart"><canvas id="c-ch-ops"></canvas></div></section>
-        <section class="panel"><div class="panel-head"><h2>% de descuento sobre la venta bruta</h2><p class="nota" id="c-n-desc"></p></div><div class="chart"><canvas id="c-ch-desc"></canvas></div></section>
-        <section class="panel"><div class="panel-head"><h2>Mix de cuotas (% de la venta)</h2><p class="nota">Cómo se reparte la venta según la cantidad de cuotas.</p></div><div class="chart"><canvas id="c-ch-cuotas"></canvas></div></section>
+        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Ticket promedio (sin IVA)">Ticket promedio (sin IVA)</h2><p class="nota" id="c-n-ticket"></p></div><div class="chart"><canvas id="c-ch-ticket"></canvas></div></section>
+        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Cantidad de tickets">Cantidad de tickets</h2><p class="nota" id="c-n-ops"></p></div><div class="chart"><canvas id="c-ch-ops"></canvas></div></section>
+        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="% de descuento sobre la venta bruta">% de descuento sobre la venta bruta</h2><p class="nota" id="c-n-desc"></p></div><div class="chart"><canvas id="c-ch-desc"></canvas></div></section>
+        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Mix de cuotas (% de la venta)">Mix de cuotas (% de la venta)</h2><p class="nota">Cómo se reparte la venta según la cantidad de cuotas.</p></div><div class="chart"><canvas id="c-ch-cuotas"></canvas></div></section>
       </div>
       <section class="panel">
         <div class="panel-head"><h2>Por local</h2><p class="nota" id="c-n-tabla"></p></div>
@@ -184,13 +184,13 @@
       <p class="aviso" id="cl-aviso" hidden></p>
       <section class="kpis" id="cl-kpis"></section>
       <div class="grid-2">
-        <section class="panel"><div class="panel-head"><h2>Clientes por mes: nuevos y recurrentes</h2><p class="nota" id="cl-n-clientes"></p></div>
+        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Clientes por mes: nuevos y recurrentes">Clientes por mes: nuevos y recurrentes</h2><p class="nota" id="cl-n-clientes"></p></div>
           <div class="leyenda" id="cl-l-clientes"></div><div class="chart"><canvas id="cl-ch-clientes"></canvas></div></section>
-        <section class="panel"><div class="panel-head"><h2>Gasto por cliente (sin IVA)</h2><p class="nota" id="cl-n-gasto"></p></div>
+        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Gasto por cliente (sin IVA)">Gasto por cliente (sin IVA)</h2><p class="nota" id="cl-n-gasto"></p></div>
           <div class="chart"><canvas id="cl-ch-gasto"></canvas></div></section>
-        <section class="panel"><div class="panel-head"><h2>Mix de paquetes (% de los ítems vendidos)</h2><p class="nota">Medio paquete, paquete completo, cortesías y otros, por mes.</p></div>
+        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Mix de paquetes (% de los ítems vendidos)">Mix de paquetes (% de los ítems vendidos)</h2><p class="nota">Medio paquete, paquete completo, cortesías y otros, por mes.</p></div>
           <div class="chart"><canvas id="cl-ch-paquetes"></canvas></div></section>
-        <section class="panel"><div class="panel-head"><h2>Ítems más vendidos</h2><p class="nota" id="cl-n-items"></p></div>
+        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Ítems más vendidos">Ítems más vendidos</h2><p class="nota" id="cl-n-items"></p></div>
           <div class="chart chart-alto"><canvas id="cl-ch-items"></canvas></div></section>
       </div>
       <section class="panel">

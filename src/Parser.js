@@ -88,6 +88,9 @@ function serialAFecha(serial) {
   return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
 }
 
+// Nombre con el que se muestra un local cuando la planilla usa otro (la clave interna no cambia).
+var NOMBRES_VISIBLES = { 'little horse': 'Caballito' };
+
 /** Lee la pestaña "Ventas Mensuales": un bloque por mes con locales, metas y súper. */
 function parsearResumen(valores) {
   var fila0 = valores[0] || [];
@@ -122,7 +125,7 @@ function parsearResumen(valores) {
       if (venta == null && meta == null) continue;
 
       mes.locales.push({
-        nombre: etiqueta,
+        nombre: NOMBRES_VISIBLES[claveLocal(etiqueta)] || etiqueta,
         clave: claveLocal(etiqueta),
         tipo: claveLocal(etiqueta) === 'ecom' ? 'ecom' : tipo,
         venta: venta || 0,

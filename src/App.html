@@ -189,6 +189,10 @@
   /** Avisa a la vista Indicadores comerciales (ComercialApp) qué Mes / Grupo / Local están elegidos. */
   function avisarFiltros(c) {
     var sel = c.filas.filter(function (f) { return f.clave === estado.local; })[0];
+    // Con un local elegido, su nombre va al lado del título de cada gráfico que lo filtra (en las tres vistas).
+    Array.prototype.forEach.call(document.querySelectorAll('h2.por-local'), function (h) {
+      h.textContent = h.getAttribute('data-titulo') + (sel ? ' · ' + sel.nombre : '');
+    });
     document.dispatchEvent(new CustomEvent('definit:filtros', { detail: {
       mes: estado.mes, desde: estado.desde || estado.mes, ini: estado.ini, fin: estado.fin,
       parcial: calcularPeriodo(estado.ini, estado.fin).parcial, periodo: etiquetaPeriodo(), grupo: estado.grupo, local: estado.local, localNombre: sel ? sel.nombre : '',
