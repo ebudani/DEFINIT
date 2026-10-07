@@ -652,10 +652,10 @@
       });
       html += '</tr>';
     });
-    // Totales del grupo elegido: % de Meta y % de Súper de la suma de los locales, mes por mes.
+    // Total del grupo elegido contra el objetivo del selector (Súper o Meta), mes por mes.
     var nombreGrupo = grupoTexto().replace(/^./, function (x) { return x.toUpperCase(); });
-    html += '</tbody><tfoot>' + [['Meta', 'meta'], ['Súper', 'super']].map(function (o) {
-      return '<tr class="total"><td class="izq">Total · % ' + o[0] + '</td>' + calc.map(function (c) {
+    html += '</tbody><tfoot>' + [vsSuper ? ['Súper', 'super'] : ['Meta', 'meta']].map(function (o) {
+      return '<tr class="total"><td class="izq">Total</td>' + calc.map(function (c) {
         var t = c.total, base = t[o[1]], v = base ? t.venta / base : null;
         if (v == null) return '<td class="celda">–</td>';
         var col = colorCelda(v);
