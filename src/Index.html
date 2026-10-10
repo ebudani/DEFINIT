@@ -38,12 +38,10 @@
       <button type="button" role="tab" id="tab-ventas" aria-selected="true" aria-controls="vista-ventas">Tablero Mensual de Ventas</button>
       <button type="button" role="tab" id="tab-comercial" aria-selected="false" aria-controls="vista-comercial">Indicadores comerciales</button>
       <button type="button" role="tab" id="tab-clientes" aria-selected="false" aria-controls="vista-clientes">Clientes</button>
-      <button type="button" role="tab" id="tab-leads" aria-selected="false" aria-controls="vista-leads">Leads</button>
     </h1>
     <p class="sub" id="fuente">Leyendo Facturación 2026…</p>
     <p class="sub" id="c-fuente" hidden></p>
     <p class="sub" id="cl-fuente" hidden></p>
-    <p class="sub" id="l-fuente" hidden></p>
   </div>
 
   <nav class="filtros" aria-label="Filtros">
@@ -213,31 +211,11 @@
     </div>
   </div>
 
-  <div id="vista-leads" role="tabpanel" aria-labelledby="tab-leads" hidden>
-    <p class="estado" id="l-estado">Cargando leads…</p>
-    <div id="l-contenido" hidden>
-      <p class="aviso" id="l-aviso" hidden></p>
-      <section class="kpis" id="l-kpis"></section>
-      <div class="grid-2" id="l-graficos">
-        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Leads y venta: avance en el período">Leads y venta: avance en el período</h2><p class="nota" id="l-n-curva"></p></div>
-          <div class="leyenda" id="l-leyenda-curva"></div><div class="chart"><canvas id="l-ch-curva"></canvas></div></section>
-        <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Origen de los leads">Origen de los leads</h2><p class="nota">Los 10 orígenes con más leads, por calificación. Al pasar el mouse, el % que compró.</p></div>
-          <div class="leyenda" id="l-leyenda-origen"></div><div class="chart chart-alto"><canvas id="l-ch-origen"></canvas></div></section>
-      </div>
-      <section class="panel" id="l-panel-tabla">
-        <div class="panel-head"><h2>Seguimiento de leads por local</h2><p class="nota">% calificados = leads con alguna calificación (Compró, Presupuesto, No responde o Error) sobre el total. % Compró es sobre los calificados.</p></div>
-        <div class="escala" id="l-escala"></div>
-        <div class="tabla-scroll"><table class="ranking-com" id="l-tabla"></table></div>
-      </section>
-    </div>
-  </div>
-
   <div class="tooltip" id="tooltip" role="status" hidden></div>
 
   <?!= include('App'); ?>
   <?!= include('ComercialApp'); ?>
   <?!= include('ClientesApp'); ?>
-  <?!= include('LeadsApp'); ?>
   <?!= include('Guia'); ?>
 </body>
 </html>
