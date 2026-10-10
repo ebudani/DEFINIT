@@ -22,7 +22,8 @@ var VERSION_CALCULO = 4;
 var FUENTES = [
   { id: 'cobros', patron: /^descuentos por locales.*\.xlsx$/i, procesar: procesarCobros },
   { id: 'sesiones', patron: /^venta_items_sesiones.*\.xlsx$/i, procesar: procesarSesiones },
-  { id: 'agenda', patron: /^minutos x mes x sucursal.*\.xlsx$/i, procesar: procesarAgenda }
+  { id: 'agenda', patron: /^minutos x mes x sucursal.*\.xlsx$/i, procesar: procesarAgenda },
+  { id: 'leads', patron: /^le+a?ds?[^a-z].*\.xlsx$/i, procesar: procesarLeads }
 ];
 
 /** Instala la revisión automática (cada hora) y procesa todo por primera vez. */
@@ -317,6 +318,54 @@ function agregarCierre(t) {
     acumular(mapa, mes + '|' + local, campos);
   }
   return aFilas(mapa, ['mes', 'local', 'items_resto', 'bruto_resto', 'desc_resto', 'neto_resto', 'items_ult7', 'bruto_ult7', 'desc_ult7', 'neto_ult7']);
+}
+
+// ---------- Leads ----------
+
+/**
+ * Leads por día, local, origen y calificación. Solo se leen esas cuatro columnas del Excel
+ * (created_at, store, source, rating): nombres, mails y teléfonos no se abren nunca.
+ */
+function procesarLeads(hojas) {
+  var t = tablaCon(hojas, { fecha: /^created_at$/i, local: /^store$/i, origen: /^source$/i, calificacion: /^rating$/i });
+  var mapa = {}, c = t.col;
+  for (var i = 0; i < t.n; i++) {
+    var dia = diaLead(c.fecha[i]);
+    if (!dia) continue;
+    var limpio = function (v) { return reparar(String(v == null ? '' : v)).replace(/\|/g, '/').trim() || '-'; };
+    acumular(mapa, [dia, claveLead(c.local[i]), limpio(c.origen[i]), limpio(c.calificacion[i])].join('|'), { leads: 1 });
+  }
+  return aFilas(mapa, ['dia', 'local', 'origen', 'calificacion', 'leads']);
+}
+
+/** created_at viene en UTC ("2026-05-01T14:14:46.730Z"): se pasa a la fecha de Argentina (UTC−3). */
+function diaLead(v) {
+  var d = v instanceof Date ? v : new Date(String(v || ''));
+  if (isNaN(d.getTime())) return null;
+  return Utilities.formatDate(d, 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd');
+}
+
+/** Textos con acentos mal codificados ("MejÃ­a" -> "Mejía"). */
+function reparar(s) {
+  if (!/[ÃÂ]/.test(s)) return s;
+  try { return decodeURIComponent(escape(s)); } catch (e) { return s; }
+}
+
+// Local del Excel de leads -> clave de Facturación (la usa el tablero para los filtros Grupo / Local).
+var LOCALES_LEADS = [
+  ['caballito', 'little horse'], ['belgrano', 'juramento'], ['recoleta', 'recoleta'], ['ramos', 'ramos'],
+  ['coronel', 'coronel'], ['devoto', 'devoto'], ['pueyrredon', 'pueyrredon'], ['urquiza', 'urquiza'],
+  ['palmas', 'palmas'], ['unicenter', 'unicenter'], ['lomitas', 'lomitas'], ['colegiales', 'colegiales'],
+  ['dot', 'dot'], ['lanus', 'lanus'], ['nordelta', 'nordelta'], ['tucuman', 'tucuman centro'],
+  ['bella vista', 'bella vista'], ['martinez', 'martinez'], ['alto rosario', 'alto rosario'],
+  ['rosario', 'rosario orono'], ['portal', 'portal'], ['alcorta', 'alcorta'], ['quilmes', 'nuevo quilmes'],
+  ['solar', 'solar'], ['san isidro', 'san isidro'], ['city bell', 'city bell'], ['leloir', 'parque leloir'],
+  ['yerba', 'yerba buena'], ['tom', 'tom'], ['cordoba', 'nueva cordoba'], ['mendoza', 'mendoza']
+];
+function claveLead(s) {
+  var n = reparar(String(s || '')).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  for (var i = 0; i < LOCALES_LEADS.length; i++) if (n.indexOf(LOCALES_LEADS[i][0]) >= 0) return LOCALES_LEADS[i][1];
+  return n.trim() || '-';
 }
 
 /** Tipo de paquete a partir del nombre ("AXILAS MUJER - CORTESÍA 3 SESIONES", "BOZO MUJER MEDIO PAQUETE"…). */

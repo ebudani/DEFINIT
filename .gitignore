@@ -4,6 +4,7 @@ dev/index.html
 dev/maqueta*.html
 dev/comercial.json
 dev/clientes.json
+dev/leads.json
 *.xlsx
 *.csv
 
