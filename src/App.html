@@ -58,12 +58,15 @@
     }
     var restantes = nDias - transcurridos;
 
-    var total = { venta: 0, meta: 0, super: 0, proy: 0 };
+    var total = { venta: 0, meta: 0, super: 0, proy: 0, parejo: 0 };
     var filas = locales.map(function (l) {
       var proy = abierto && transcurridos ? l.venta / transcurridos * nDias : l.venta;
-      total.venta += l.venta; total.meta += l.meta; total.super += l.super; total.proy += proy;
+      // Ritmo parejo: lo que habría que llevar vendido a esta altura del mes para llegar a la Meta vendiendo igual todos los días.
+      var parejo = abierto ? l.meta * transcurridos / nDias : l.meta;
+      total.venta += l.venta; total.meta += l.meta; total.super += l.super; total.proy += proy; total.parejo += parejo;
       return {
         nombre: l.nombre, clave: l.clave, tipo: l.tipo, venta: l.venta, meta: l.meta, super: l.super, proy: proy,
+        parejo: parejo, vsParejo: abierto && l.meta ? l.venta - parejo : null,
         pMeta: l.meta ? l.venta / l.meta : null,
         pSuper: l.super ? l.venta / l.super : null,
         pProy: l.meta ? proy / l.meta : null,
@@ -135,15 +138,16 @@
     cs.forEach(function (c) {
       c.filas.forEach(function (f) {
         var a = porClave[f.clave];
-        if (!a) { a = porClave[f.clave] = { clave: f.clave, venta: 0, meta: 0, super: 0, proy: 0 }; orden.push(f.clave); }
+        if (!a) { a = porClave[f.clave] = { clave: f.clave, venta: 0, meta: 0, super: 0, proy: 0, parejo: 0 }; orden.push(f.clave); }
         a.nombre = f.nombre; a.tipo = f.tipo;
-        a.venta += f.venta; a.meta += f.meta; a.super += f.super; a.proy += f.proy;
+        a.venta += f.venta; a.meta += f.meta; a.super += f.super; a.proy += f.proy; a.parejo += f.parejo == null ? f.meta : f.parejo;
       });
     });
-    var total = { venta: 0, meta: 0, super: 0, proy: 0 };
+    var total = { venta: 0, meta: 0, super: 0, proy: 0, parejo: 0 };
     var filas = orden.map(function (k) {
       var a = porClave[k];
-      total.venta += a.venta; total.meta += a.meta; total.super += a.super; total.proy += a.proy;
+      total.venta += a.venta; total.meta += a.meta; total.super += a.super; total.proy += a.proy; total.parejo += a.parejo;
+      a.vsParejo = ult.abierto && a.meta ? a.venta - a.parejo : null;
       a.pMeta = a.meta ? a.venta / a.meta : null;
       a.pSuper = a.super ? a.venta / a.super : null;
       a.pProy = a.meta ? a.proy / a.meta : null;
@@ -248,6 +252,7 @@
     { id: 'pMeta', th: '% Meta', orden: true },
     { id: 'pSuper', th: '% Súper', orden: true },
     { id: 'pProy', th: 'Proyección vs Meta', orden: true, soloAbierto: true },
+    { id: 'vsParejo', th: 'vs ritmo parejo', orden: true, soloAbierto: true },
     { id: 'necesario', th: 'Necesario/día p/ Súper', orden: true, soloAbierto: true },
     { id: 'estado', th: 'Estado', izq: true }
   ];
@@ -278,6 +283,11 @@
       },
       pSuper: function (f) { return '<td>' + pct(f.pSuper) + '</td>'; },
       pProy: function (f) { return '<td class="' + (f.pProy != null && f.pProy < 1 ? 'neg' : '') + '">' + pct(f.pProy) + '</td>'; },
+      vsParejo: function (f) {
+        if (f.vsParejo == null) return '<td>–</td>';
+        return '<td class="' + (f.vsParejo < 0 ? 'neg' : 'pos-var') + '" title="Lleva ' + millones(f.venta) + '; a ritmo parejo serían ' + millones(f.parejo) + '">' +
+          (f.vsParejo < 0 ? '−' : '+') + millones(Math.abs(f.vsParejo)) + '</td>';
+      },
       necesario: function (f) { return '<td>' + (f.necesario == null ? '–' : f.necesario === 0 ? 'Logrado' : millones(f.necesario)) + '</td>'; },
       estado: function (f) {
         var e = estadoLocal(f, c.abierto);
@@ -288,7 +298,9 @@
     var t = c.total;
     var pie = {
       pos: '', nombre: 'Total', venta: millones(t.venta), part: '100%', pMeta: pct(t.venta / t.meta), pSuper: pct(t.venta / t.super),
-      pProy: pct(t.proy / t.meta), necesario: c.restantes > 0 ? millones(Math.max(0, (t.super - t.venta) / c.restantes)) : '–', estado: ''
+      pProy: pct(t.proy / t.meta),
+      vsParejo: t.meta ? '<span class="' + (t.venta < t.parejo ? 'neg' : 'pos-var') + '">' + (t.venta < t.parejo ? '−' : '+') + millones(Math.abs(t.venta - t.parejo)) + '</span>' : '–',
+      necesario: c.restantes > 0 ? millones(Math.max(0, (t.super - t.venta) / c.restantes)) : '–', estado: ''
     };
 
     $('tabla-ranking').innerHTML =
@@ -303,7 +315,7 @@
     $('nota-ranking').textContent = c.parcial
       ? etiquetaPeriodo() + '. Meta y Súper proporcionales a los días con datos del período (Meta del mes × días ÷ días del mes). La barra marca el 100% de la Meta.'
       : (c.rango ? 'Acumulado ' + textoRango(c) + '. ' : '') + (c.abierto
-      ? 'Proyección = venta a la fecha ÷ ' + c.transcurridos + ' días × ' + c.nDias + ' días. Necesario/día = lo que falta para el Súper ÷ ' + c.restantes + ' días restantes. La barra marca el 100% de la Meta.'
+      ? 'Proyección = venta a la fecha ÷ ' + c.transcurridos + ' días × ' + c.nDias + ' días. vs ritmo parejo = venta − Meta × ' + c.transcurridos + ' ÷ ' + c.nDias + ' días (en rojo, lo que falta para ir parejo hacia la Meta). Necesario/día = lo que falta para el Súper ÷ ' + c.restantes + ' días restantes. La barra marca el 100% de la Meta.'
       : 'Mes cerrado. La barra de % Meta marca el 100%.');    $('panel-ranking').hidden = false;
   }
 
