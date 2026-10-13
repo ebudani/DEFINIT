@@ -321,7 +321,7 @@
     var avance = c.abierto && !c.parcial && !c.rango && c.nDias ? c.transcurridos / c.nDias : null;
     $('nota-parejo').hidden = avance == null;
     if (avance != null) {
-      $('nota-parejo').innerHTML = '<strong>Cómo leer "vs ritmo parejo":</strong> al día ' + c.transcurridos + ' pasó el ' + pct(avance) +
+      $('nota-parejo').innerHTML = 'vs ritmo parejo = al día ' + c.transcurridos + ' pasó el ' + pct(avance) +
         ' del mes, así que para llegar a la Meta vendiendo parejo cada local debería llevar el ' + pct(avance) + ' de su Meta (comparalo con la columna % Meta). ' +
         'En <span class="pos-var">verde (+)</span>, lo que lleva de más; en <span class="neg">rojo (−)</span>, lo que le falta: si no lo recupera en los próximos días, ' +
         'va a depender del cierre del mes. Tocá el título de la columna para ver primero a los más atrasados.';
