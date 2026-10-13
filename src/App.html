@@ -316,7 +316,16 @@
       ? etiquetaPeriodo() + '. Meta y Súper proporcionales a los días con datos del período (Meta del mes × días ÷ días del mes). La barra marca el 100% de la Meta.'
       : (c.rango ? 'Acumulado ' + textoRango(c) + '. ' : '') + (c.abierto
       ? 'Proyección = venta a la fecha ÷ ' + c.transcurridos + ' días × ' + c.nDias + ' días. vs ritmo parejo = venta − Meta × ' + c.transcurridos + ' ÷ ' + c.nDias + ' días (en rojo, lo que falta para ir parejo hacia la Meta). Necesario/día = lo que falta para el Súper ÷ ' + c.restantes + ' días restantes. La barra marca el 100% de la Meta.'
-      : 'Mes cerrado. La barra de % Meta marca el 100%.');    $('panel-ranking').hidden = false;
+      : 'Mes cerrado. La barra de % Meta marca el 100%.');
+    // Cómo leer la columna "vs ritmo parejo" (solo en el mes en curso).
+    var avance = c.abierto && !c.parcial && !c.rango && c.nDias ? c.transcurridos / c.nDias : null;
+    $('nota-parejo').hidden = avance == null;
+    if (avance != null) {
+      $('nota-parejo').innerHTML = '<strong>Cómo leer "vs ritmo parejo":</strong> al día ' + c.transcurridos + ' pasó el ' + pct(avance) +
+        ' del mes, así que para llegar a la Meta vendiendo parejo cada local debería llevar el ' + pct(avance) + ' de su Meta (comparalo con la columna % Meta). ' +
+        'En <span class="pos-var">verde (+)</span>, lo que lleva de más; en <span class="neg">rojo (−)</span>, lo que le falta: si no lo recupera en los próximos días, ' +
+        'va a depender del cierre del mes. Tocá el título de la columna para ver primero a los más atrasados.';
+    }    $('panel-ranking').hidden = false;
   }
 
   // ---------- Gráficos ----------
