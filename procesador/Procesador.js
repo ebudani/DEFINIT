@@ -76,6 +76,11 @@ function procesar() {
   });
 
   escribir(libro, 'info', [['fuente', 'archivo', 'actualizado', 'estado']].concat(info));
+
+  // Pruebas de EVUP pendientes: corren solas en la próxima ejecución automática.
+  if (!libro.getSheetByName('evup_estructura')) {
+    try { probarEstructura(); } catch (e) { escribir(libro, 'evup_estructura', [['error'], [String(e && e.message || e)]]); }
+  }
 }
 
 // ---------- Drive ----------
