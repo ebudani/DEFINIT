@@ -74,3 +74,34 @@ function probarEvup() {
   escribir(base(), 'evup_prueba', filas);
   Logger.log('Listo: ver la pestaña evup_prueba de la Base comercial.');
 }
+
+/**
+ * Segunda prueba: qué locales / países hay en EVUP y cuántos leads tiene cada uno.
+ * Escribe en la pestaña "evup_estructura" solo nombres de locales y cantidades (sin datos personales).
+ */
+function probarEstructura() {
+  var token = evupToken();
+  var estructuras = [], pagina = 1;
+  while (pagina <= 40) {
+    var r = evup(token, '/OrganizationalStructure/List', { PageNumber: pagina, Filters: [], Sort: [] });
+    var items = Array.isArray(r) ? r : (r.items || r.Items || []);
+    if (!items.length) break;
+    estructuras = estructuras.concat(items);
+    if (items.length < 50) break;
+    pagina++;
+  }
+  var filas = [['id', 'local', 'depende de', 'tipo', 'leads totales', 'leads desde 2025']];
+  var desde2025 = [{ Field: 'CreationDate', FieldType: 'date', Operation: 'greater_eq', Value: '2025-01-01' }];
+  estructuras.forEach(function (e) {
+    var id = e.Id || e.id;
+    var total = '', reciente = '';
+    try { total = cantidad(evup(token, '/Lead/Count', { FilterOrgStructure: id, PageNumber: 1, Filters: [], Sort: [] })); } catch (x) { total = 'error'; }
+    try { reciente = cantidad(evup(token, '/Lead/Count', { FilterOrgStructure: id, PageNumber: 1, Filters: desde2025, Sort: [] })); } catch (x) { reciente = 'error'; }
+    filas.push([id, e.Description || e.description, e.FatherDescription || e.fatherDescription || '', e.ClassifierName || e.classifierName || '', total, reciente]);
+  });
+  try { filas.push(['', 'TODOS desde 2025', '', '', '', cantidad(evup(token, '/Lead/Count', { PageNumber: 1, Filters: desde2025, Sort: [] }))]); } catch (x) { filas.push(['', 'TODOS desde 2025', '', '', '', 'error: ' + x.message]); }
+  escribir(base(), 'evup_estructura', filas);
+  Logger.log('Listo: ' + estructuras.length + ' estructuras. Ver la pestaña evup_estructura de la Base comercial.');
+}
+
+function cantidad(r) { return typeof r === 'number' ? r : (r.count != null ? r.count : r.Count != null ? r.Count : JSON.stringify(r)); }
