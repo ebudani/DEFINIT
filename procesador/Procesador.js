@@ -44,6 +44,7 @@ function procesar() {
   var archivos = listarCarpeta();
   var libro = base();
   var info = [];
+  limpiarDiagnostico(libro);
 
   FUENTES.forEach(function (fuente) {
     var archivo = masReciente(archivos, fuente.patron);
@@ -119,13 +120,16 @@ function escribir(libro, nombre, filas) {
   if (sobra && libro.getSheets().length > 1) libro.deleteSheet(sobra);
 }
 
-/** Encabezados y primeras filas de cada pestaña del Excel, para revisar su formato. */
+/**
+ * Encabezados de cada pestaña del Excel, para revisar su formato. Solo la fila 1: las filas de
+ * datos pueden tener nombres de clientes y la base la ven otras personas.
+ */
 function diagnosticar(libro, fuenteId, archivo, hojas) {
   var filas = [['fuente', 'archivo', 'pestaña', 'filas', 'columnas', 'fila', 'valores']];
   var previas = (libro.getSheetByName('diagnostico') || { getDataRange: function () { return { getValues: function () { return []; } }; } })
-    .getDataRange().getValues().slice(1).filter(function (f) { return f[0] && f[0] !== fuenteId; });
+    .getDataRange().getValues().slice(1).filter(function (f) { return f[0] && f[0] !== fuenteId && +f[5] === 1; });
   hojas.forEach(function (h) {
-    var n = Math.min(4, h.getLastRow());
+    var n = Math.min(1, h.getLastRow());
     var vals = n ? h.getRange(1, 1, n, Math.min(h.getLastColumn(), 20)).getValues() : [];
     vals.forEach(function (v, i) {
       filas.push([fuenteId, archivo.getName(), h.getName(), h.getLastRow(), h.getLastColumn(), i + 1,
@@ -133,6 +137,15 @@ function diagnosticar(libro, fuenteId, archivo, hojas) {
     });
   });
   escribir(libro, 'diagnostico', [filas[0]].concat(previas, filas.slice(1)));
+}
+
+/** Deja en "diagnostico" solo las filas de encabezados (versiones anteriores guardaban filas de datos). */
+function limpiarDiagnostico(libro) {
+  var hoja = libro.getSheetByName('diagnostico');
+  if (!hoja) return;
+  var v = hoja.getDataRange().getValues();
+  var quedan = v.filter(function (f, i) { return i === 0 || +f[5] === 1; });
+  if (quedan.length < v.length) escribir(libro, 'diagnostico', quedan);
 }
 
 function fecha(d) { return Utilities.formatDate(d, 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd HH:mm'); }
