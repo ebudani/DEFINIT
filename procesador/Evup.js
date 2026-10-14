@@ -20,7 +20,10 @@ function evupToken() {
     payload: JSON.stringify({ Login: usuario, Password: clave })
   });
   if (r.getResponseCode() !== 200) throw new Error('EVUP rechazó el login (HTTP ' + r.getResponseCode() + ').');
-  var token = buscarToken(JSON.parse(r.getContentText()));
+  // La respuesta puede ser el token solo (texto) o un JSON que lo contiene.
+  var texto = r.getContentText().trim(), datos;
+  try { datos = JSON.parse(texto); } catch (e) { datos = texto.replace(/^"|"$/g, ''); }
+  var token = buscarToken(datos);
   if (!token) throw new Error('EVUP respondió al login pero no encontré el token en la respuesta.');
   return token;
 }
