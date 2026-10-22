@@ -236,18 +236,26 @@
     };
   }
 
+  /** Embudo: leads -> con seguimiento -> con presupuesto o compra registrada -> compraron (ventas reales). */
   function renderEmbudo(A, porCalif) {
-    var pre = porCalif.Presupuesto || vacio();
-    var pasos = [['Leads', A.leads], ['Calificados "Presupuesto"', pre.leads], ['Compraron', A.compraron], ['No concretaron', A.no_concretaron], ['Todavía en curso', A.en_curso]];
-    var colores = [css('--series-1'), '#2a78d6', '#1f8a3b', '#d03b3b', '#b7b8c0'];
-    var op = opciones();
-    op.indexAxis = 'y';
-    op.scales.x.ticks.callback = function (v) { return nf0.format(v); };
-    op.scales.x.grid = { color: css('--grid') }; op.scales.y.grid = { display: false };
-    op.plugins.tooltip.callbacks = { label: function (ctx) { return ' ' + nf0.format(ctx.raw) + ' (' + pct(A.leads ? ctx.raw / A.leads : null) + ' de los leads)'; } };
-    dibujar('l-ch-embudo', { type: 'bar', data: { labels: pasos.map(function (p) { return p[0]; }), datasets: [{ data: pasos.map(function (p) { return p[1]; }),
-      backgroundColor: colores, maxBarThickness: 26, borderRadius: 4 }] }, options: op });
-    $('l-n-embudo').innerHTML = 'De cada 100 leads, <strong>' + nf1.format((conv(A) || 0) * 100) + '</strong> compraron. "No concretaron" = sin compra pasado el plazo; "en curso" = todavía dentro del plazo.';
+    var sin = (porCalif['-'] || vacio()).leads;
+    var pre = (porCalif.Presupuesto || vacio()).leads, comp = (porCalif.Compro || vacio()).leads;
+    var pasos = [
+      ['Leads', A.leads, 'Todos los que entraron'],
+      ['Con seguimiento', A.leads - sin, 'El equipo cargó una calificación'],
+      ['Con presupuesto o compra registrada', pre + comp, 'Calificados "Presupuesto" o "Compró"'],
+      ['Compraron', A.compraron, 'Compra real en ventas, dentro de los 90 días']
+    ];
+    var colores = ['#0000ff', '#2a5bd6', '#2a8fd6', '#1f8a3b'];
+    var max = A.leads || 1;
+    $('l-embudo').innerHTML = pasos.map(function (p, i) {
+      var ancho = Math.max(22, p[1] / max * 100);
+      return '<div class="embudo-paso"><div class="embudo-barra" style="width:' + ancho + '%;background:' + colores[i] + '">' +
+        '<strong>' + nf0.format(p[1]) + '</strong><span>' + (i ? pct(A.leads ? p[1] / A.leads : null) : '100%') + '</span></div>' +
+        '<div class="embudo-texto"><strong>' + p[0] + '</strong> · ' + p[2] + '</div></div>';
+    }).join('') +
+      '<p class="embudo-pie"><span class="neg">No concretaron: ' + nf0.format(A.no_concretaron) + '</span> · Todavía en curso (dentro de los 90 días): ' + nf0.format(A.en_curso) + '</p>';
+    $('l-n-embudo').innerHTML = 'De cada 100 leads, <strong>' + nf1.format((conv(A) || 0) * 100) + '</strong> compraron. "Compraron" sale de las ventas reales, así que incluye a los que el equipo no calificó.';
   }
 
   function renderDias(A) {
