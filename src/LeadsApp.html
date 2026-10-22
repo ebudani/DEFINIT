@@ -167,14 +167,12 @@
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
     var A = resumir('A', mv, function (o) { return o.clave; });          // por tipo
-    var porMes = resumir('A', mv, function (o) { return o.mes; }).grupos;
     var porLocal = resumir('A', mv, function (o) { return o.local; }).grupos;
     var porCalif = resumir('B', mv, function (o) { return o.clave; }).grupos;
     var porOrigen = resumir('C', mv, function (o) { return o.clave; }).grupos;
     var todos = resumir('A', meses), anterior = resumir('A', meses.map(mesMenos12));
 
     renderKpis(todos, A, anterior, meses);
-    renderResumen(A, porMes, porLocal, porOrigen, porCalif, mv);
     renderEmbudo(A, porCalif);
     renderDias(A);
     renderTipos(A);
@@ -199,42 +197,6 @@
       return '<div class="kpi ' + (k.cls || '') + '"><div class="kpi-label">' + k.label + '</div><div class="kpi-valor">' + k.valor +
         '</div><div class="kpi-det">' + k.det + '</div></div>';
     }).join('');
-  }
-
-  /** Resumen escrito, recalculado con los filtros. */
-  function renderResumen(A, porMes, porLocal, porOrigen, porCalif, mv) {
-    var g = A.grupos, nuevos = g.nuevo || vacio(), yc = g.ya_cliente || vacio(), yl = g.ya_lead || vacio();
-    var lineas = [];
-    lineas.push('<strong>El embudo:</strong> ' + nf0.format(A.leads) + ' leads → <strong>' + nf0.format(A.compraron) + ' compraron (' + pct(conv(A)) + ')</strong> → <strong>' +
-      millones(A.facturacion) + '</strong>, con un ticket de ≈ ' + miles(A.compraron ? A.facturacion / A.compraron : null) + ' por comprador.');
-    lineas.push('<strong>' + pct0(A.compraron ? nuevos.compraron / A.compraron : null) + ' de los compradores son nuevos</strong> (' + nf0.format(nuevos.compraron) +
-      '). ' + nf0.format(yc.leads) + ' leads ya eran clientes que volvieron a consultar y ' + nf0.format(yl.leads) + ' ya habían sido leads.');
-    lineas.push('<strong>El ' + pct0(en3(A)) + ' se define en los primeros 3 días</strong>: ' + pct0(A.compraron ? A.d0 / A.compraron : null) + ' compra el mismo día.');
-    var ms = mv.filter(function (m) { return porMes[m] && porMes[m].leads; });
-    if (ms.length > 1) {
-      var a = porMes[ms[0]], b = porMes[ms[ms.length - 1]];
-      lineas.push('<strong>Tendencia:</strong> la conversión pasó de ' + pct(conv(a)) + ' en ' + mesCorto(ms[0]) + ' a ' + pct(conv(b)) + ' en ' + mesCorto(ms[ms.length - 1]) +
-        ', con ' + (a.leads ? nf1.format(b.leads / a.leads) : '–') + ' veces los leads. (Los últimos meses todavía pueden sumar compras.)');
-    }
-    var ranking = function (grupos, minimo, nombre, porLocalRank) {
-      // Sin compras en su propio local = local sin ventas en el archivo (franquicias): no entra en el ranking.
-      var ks = Object.keys(grupos).filter(function (k) { return grupos[k].leads >= minimo && k !== '-' && k !== 'otros' && (!porLocalRank || grupos[k].mismo_local > 0); })
-        .sort(function (a, b) { return conv(grupos[b]) - conv(grupos[a]); });
-      var fmt = function (k) { return esc(nombre(k)) + ' ' + pct(conv(grupos[k])); };
-      return { arriba: ks.slice(0, 4).map(fmt).join(' · '), abajo: ks.slice(-3).reverse().map(fmt).join(' · '), n: ks.length };
-    };
-    if (!(est.filtros || {}).local) {
-      var rl = ranking(porLocal, 50, nombreLocal, true);
-      if (rl.n > 4) lineas.push('<strong>Por local:</strong> arriba ' + rl.arriba + ' — abajo ' + rl.abajo + '.');
-    }
-    var ro = ranking(porOrigen, 100, function (k) { return k; });
-    if (ro.n > 4) lineas.push('<strong>Por origen:</strong> arriba ' + ro.arriba + ' — abajo ' + ro.abajo + '.');
-    var pre = porCalif.Presupuesto, nr = porCalif['No responde'];
-    if (pre && pre.leads) lineas.push('<strong>Calificación del equipo:</strong> de los "Presupuesto" compró el ' + pct(conv(pre)) +
-      (nr && nr.leads ? '; de los "No responde", el ' + pct(conv(nr)) : '') + '.');
-    $('l-resumen').innerHTML = '<ul>' + lineas.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul>' +
-      '<p class="nota">Compró = el lead aparece comprando dentro de los ' + (est.datos.info.plazo || '90 días') + ' (cruce por nombre con las ventas, incluye apodos y errores de tipeo). ' +
-      'El cruce no encuentra a todos: los % son un piso.</p>';
   }
 
   function dibujar(id, config) {
