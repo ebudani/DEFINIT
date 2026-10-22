@@ -275,6 +275,13 @@
   }
   @media (max-width: 860px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
   /* Celular */
+  @media (max-width: 1150px) {
+    .col-md { display: none; }
+    th, td { padding: 6px 6px; }
+  }
+  @media (max-width: 900px) {
+    .col-tb { display: none; }
+  }
   @media (max-width: 600px) {
     body { padding: 12px 12px 32px; font-size: 12.5px; }
     .marca { margin: -12px -12px 12px; padding: 8px 12px; }
@@ -299,6 +306,10 @@
     /* Filtros compactos: Mes y Local en una fila, Grupo abajo */
     .filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; padding: 10px; margin-bottom: 12px; }
     .filtros .campo { grid-column: 1 / -1; }
+    .col-pc { display: none; }
+    th, td { padding: 5px 4px; }
+    td.izq, th.izq { white-space: normal; }
+    .barra-celda .barra { display: none; }
     .fecha-btn { width: 100%; min-width: 0; font-size: 12.5px; }
     .segmentado { display: grid; grid-template-columns: repeat(3, 1fr); }
     .segmentado button { padding: 6px 4px; }

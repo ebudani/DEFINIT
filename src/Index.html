@@ -254,5 +254,60 @@
   <?!= include('ClientesApp'); ?>
   <?!= include('LeadsApp'); ?>
   <?!= include('Guia'); ?>
+  <script>
+  // En el celular cada tabla muestra solo las columnas principales (sin scroll hacia el costado).
+  // Las demás columnas quedan marcadas con "col-pc" y se ocultan por CSS en pantallas chicas.
+  (function () {
+    var OCULTAR = {
+      'tabla-ranking': ['Participación', '% Súper', 'Proyección vs Meta', 'vs ritmo parejo', 'Necesario/día p/ Súper'],
+      'c-tabla': ['1 pago', '3 cuotas', '6 cuotas', '12 cuotas'],
+      'cl-tabla': ['% nuevos', 'Ítems/cliente', 'Sesiones/cliente', '% con cortesía'],
+      'l-t-calif': ['Compraron', 'Compra en 3 días'],
+      'l-t-origen': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
+      'l-t-local': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
+      'tabla-mapa': 4, // Local y los 3 meses más recientes
+      'tabla-conc': 4
+    };
+    // En pantallas medianas (notebook chica, tablet) se ocultan solo estas ("col-md").
+    var OCULTAR_MEDIO = {
+      'tabla-ranking': ['Participación', '% Súper'],
+      'l-t-calif': ['Compra en 3 días']
+    };
+    // En tablet ("col-tb"), además de las de pantallas medianas.
+    var OCULTAR_TABLET = {
+      'tabla-ranking': ['Proyección vs Meta', 'Necesario/día p/ Súper'],
+      'l-t-origen': ['Ticket', 'No concretaron', 'En curso'],
+      'l-t-local': ['Ticket', 'No concretaron', 'En curso'],
+      'tabla-mapa': 7, // Local y los 6 meses más recientes
+      'tabla-conc': 7
+    };
+    function marcar(tabla) {
+      var regla = OCULTAR[tabla.id], enc = tabla.tHead && tabla.tHead.rows[0];
+      if (!enc) return;
+      var indices = [];
+      Array.prototype.forEach.call(enc.cells, function (c, i) {
+        var t = c.textContent.replace(/[↑↓]/g, '').trim();
+        if (typeof regla === 'number' ? i >= regla : regla.indexOf(t) >= 0) indices.push(i);
+      });
+      var medio = [], tablet = [], rt = OCULTAR_TABLET[tabla.id] || [];
+      Array.prototype.forEach.call(enc.cells, function (c, i) {
+        var t = c.textContent.replace(/[↑↓]/g, '').trim();
+        if ((OCULTAR_MEDIO[tabla.id] || []).indexOf(t) >= 0) medio.push(i);
+        if (typeof rt === 'number' ? i >= rt : rt.indexOf(t) >= 0) tablet.push(i);
+      });
+      Array.prototype.forEach.call(tabla.rows, function (fila) {
+        indices.forEach(function (i) { if (fila.cells[i]) fila.cells[i].classList.add('col-pc'); });
+        medio.forEach(function (i) { if (fila.cells[i]) fila.cells[i].classList.add('col-md'); });
+        tablet.forEach(function (i) { if (fila.cells[i]) fila.cells[i].classList.add('col-tb'); });
+      });
+    }
+    Object.keys(OCULTAR).forEach(function (id) {
+      var t = document.getElementById(id);
+      if (!t) return;
+      new MutationObserver(function () { marcar(t); }).observe(t, { childList: true });
+      marcar(t);
+    });
+  })();
+  </script>
 </body>
 </html>
