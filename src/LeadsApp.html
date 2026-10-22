@@ -239,7 +239,8 @@
       backgroundColor: TRAMOS.map(function (t, i) { return i < 2 ? css('--series-1') : '#b3b3ff'; }), maxBarThickness: 40, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] }, options: op });
     $('l-n-dias').innerHTML = 'El <strong>' + pct0(en3(A)) + '</strong> de los que compran lo hace en los primeros 3 días: la velocidad de respuesta define la venta.';
     $('l-t-dias').innerHTML = '<thead><tr><th class="izq">Cuándo compran</th><th>Compradores</th><th>%</th></tr></thead><tbody>' +
-      TRAMOS.map(function (t) { return '<tr><td class="izq">' + t[1] + '</td><td>' + nf0.format(A[t[0]]) + '</td><td>' + pct0(A.compraron ? A[t[0]] / A.compraron : null) + '</td></tr>'; }).join('') + '</tbody>';
+      TRAMOS.map(function (t) { return '<tr><td class="izq">' + t[1] + '</td><td>' + nf0.format(A[t[0]]) + '</td><td>' + pct0(A.compraron ? A[t[0]] / A.compraron : null) + '</td></tr>'; }).join('') + '</tbody>' +
+      '<tfoot><tr><td class="izq">Total que compró</td><td>' + nf0.format(A.compraron) + '</td><td>' + (A.compraron ? '100%' : '–') + '</td></tr></tfoot>';
   }
 
   function renderTipos(A) {
