@@ -172,7 +172,13 @@
     var porOrigen = resumir('C', mv, function (o) { return o.clave; }).grupos;
     var todos = resumir('A', meses), anterior = resumir('A', meses.map(mesMenos12));
 
-    renderKpis(todos, A, anterior, meses);
+    // Conversión "limpia": locales propios (las franquicias no están en ventas) y meses con los 90 días cumplidos.
+    var corte = d.info.corte || '';
+    var completos = mv.filter(function (m) { var n = new Date(+m.slice(0, 4), +m.slice(5, 7), 0).getDate(); return corte && m + '-' + n <= corte; });
+    var propios = (f.clavesPropios) || {};
+    var limpio = vacio();
+    d.A.forEach(function (o) { if (completos.indexOf(o.mes) >= 0 && enSeleccion(o.local) && propios[o.local]) sumar(limpio, o); });
+    renderKpis(todos, A, anterior, meses, limpio, completos);
     renderEmbudo(A, porCalif);
     renderDias(A);
     renderTipos(A);
@@ -183,13 +189,15 @@
     renderTabla('l-t-local', porLocal, nombreLocal, 0, 'Local');
   }
 
-  function renderKpis(todos, A, ant, meses) {
+  function renderKpis(todos, A, ant, meses, limpio, completos) {
     var dif = ant.leads ? todos.leads / ant.leads - 1 : null;
     var nuevos = A.grupos.nuevo || vacio();
     var tiles = [
       { cls: 'hero', label: 'Leads', valor: nf0.format(todos.leads),
         det: dif == null ? 'Sin datos del año anterior' : '<span class="' + (dif >= 0 ? 'pos-var' : 'neg') + '">' + (dif >= 0 ? '+' : '−') + pct(Math.abs(dif)) + '</span> vs mismo período ' + (meses[0].slice(0, 4) - 1) },
-      { label: 'Compraron', valor: pct(conv(A)), det: nf0.format(A.compraron) + ' de ' + nf0.format(A.leads) + ' leads (piso)' },
+      { label: 'Conversión', valor: pct(conv(limpio)),
+        det: limpio.leads ? nf0.format(limpio.compraron) + ' de ' + nf0.format(limpio.leads) + ' leads de locales propios, ' + mesCorto(completos[0]).toLowerCase() + ' a ' +
+          mesCorto(completos[completos.length - 1]).toLowerCase() + ' (90 días cumplidos). El real es mayor: el cruce no encuentra a todos.' : 'Sin leads de locales propios con 90 días cumplidos' },
       { label: 'Facturación de los que compraron', valor: millones(A.facturacion), det: 'Ticket por comprador ' + miles(A.compraron ? A.facturacion / A.compraron : null) },
       { label: 'Compran en los primeros 3 días', valor: pct0(en3(A)), det: 'Promedio ' + nf1.format(A.compraron ? A.dias_suma / A.compraron : 0) + ' días hasta la compra' },
       { label: 'Compradores nuevos', valor: pct0(A.compraron ? nuevos.compraron / A.compraron : null), det: nf0.format(nuevos.compraron) + ' sin compras ni leads previos' }

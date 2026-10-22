@@ -200,7 +200,11 @@
     });
     document.dispatchEvent(new CustomEvent('definit:filtros', { detail: {
       mes: estado.mes, desde: estado.desde || estado.mes, ini: estado.ini, fin: estado.fin,
-      parcial: calcularPeriodo(estado.ini, estado.fin).parcial, periodo: etiquetaPeriodo(), grupo: estado.grupo, local: estado.local, localNombre: sel ? sel.nombre : '',
+      parcial: calcularPeriodo(estado.ini, estado.fin).parcial, periodo: etiquetaPeriodo(), grupo: estado.grupo,
+      // Locales propios (con Ecommerce) de la planilla: los únicos que tienen ventas en el archivo de ventas por ítem.
+      clavesPropios: estado.datos.meses.reduce(function (o, m) {
+        m.locales.forEach(function (l) { if (l.tipo !== 'franquicia') o[l.clave] = true; }); return o;
+      }, {}), local: estado.local, localNombre: sel ? sel.nombre : '',
       grupoTexto: grupoTexto(), clavesGrupo: c.filas.map(function (f) { return f.clave; }),
       nombres: c.filas.reduce(function (o, f) { o[f.clave] = f.nombre; return o; }, {})
     } }));
