@@ -234,6 +234,10 @@
           <section class="panel"><div class="panel-head"><h2>Según la calificación del equipo</h2><p class="nota">Calificación cargada en el sistema de leads contra lo que realmente compró.</p></div>
             <div class="tabla-scroll"><table class="ranking-com" id="l-t-calif"></table></div></section>
         </div>
+        <section class="panel">
+          <div class="panel-head"><h2 class="por-local" data-titulo="Mes a mes">Mes a mes</h2><p class="nota">Leads de cada mes del año, contra el mismo mes del año anterior, y cuántos de esos leads compraron. Los últimos meses todavía pueden sumar compras (hay hasta 90 días).</p></div>
+          <div class="tabla-scroll"><table class="ranking-com" id="l-t-mes"></table></div>
+        </section>
         <div class="escala" id="l-escala"></div>
         <section class="panel">
           <div class="panel-head"><h2>Por origen (los 15 con más leads)</h2><p class="nota">Compra en 3 días = % de los compradores que compró en los primeros 3 días.</p></div>
@@ -263,6 +267,7 @@
       'c-tabla': ['1 pago', '3 cuotas', '6 cuotas', '12 cuotas'],
       'cl-tabla': ['% nuevos', 'Ítems/cliente', 'Sesiones/cliente', '% con cortesía'],
       'l-t-calif': ['Compraron', 'Compra en 3 días'],
+      'l-t-mes': ['Compraron', 'Compra en 3 días', 'Compradores nuevos'],
       'l-t-origen': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
       'l-t-local': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
       'tabla-mapa': 4, // Local y los 3 meses más recientes
@@ -278,6 +283,7 @@
       'tabla-ranking': ['Proyección vs Meta', 'Necesario/día p/ Súper'],
       'l-t-origen': ['Ticket', 'No concretaron', 'En curso'],
       'l-t-local': ['Ticket', 'No concretaron', 'En curso'],
+      'l-t-mes': ['Compradores nuevos'],
       'tabla-mapa': 7, // Local y los 6 meses más recientes
       'tabla-conc': 7
     };

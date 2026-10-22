@@ -44,11 +44,13 @@
     $('tab-leads').setAttribute('aria-selected', 'true');
     $('vista-leads').hidden = false;
     $('l-fuente').hidden = !est.datos;
+    document.querySelector('.campo-fecha').style.display = 'none'; // Leads: siempre el año en curso
     if (!est.datos && !est.cargando) cargar(); else if (est.datos) render();
   });
   ['tab-ventas', 'tab-comercial', 'tab-clientes'].forEach(function (id) {
     $(id).addEventListener('click', function () {
       $('vista-leads').hidden = true; $('l-fuente').hidden = true;
+      document.querySelector('.campo-fecha').style.display = '';
       $('tab-leads').setAttribute('aria-selected', 'false');
     });
   });
@@ -147,21 +149,19 @@
   function render() {
     var d = est.datos, f = est.filtros || {};
     var aviso = $('l-aviso'), avisos = [];
-    var ultimo = d.meses[d.meses.length - 1];
-    var desde = f.desde || d.meses[0], hasta = f.mes || ultimo;
-    if (hasta > ultimo) {
-      avisos.push('El archivo de leads llega hasta ' + mesLargo(ultimo) + ': se muestra ' + (desde > ultimo ? mesLargo(ultimo) : 'hasta ese mes') + '.');
-      hasta = ultimo; if (desde > ultimo) desde = ultimo;
-    }
-    var meses = d.meses.filter(function (m) { return m >= desde && m <= hasta; });
-    var mv = meses.filter(function (m) { return m >= d.primeraVenta && m <= d.ultimaVenta; });
+    // Leads no usa el filtro de Fecha: siempre el año en curso, de enero al último mes con ventas
+    // (sin ventas no se puede saber quién compró). El mes que sigue, si ya tiene leads, figura en el gráfico mensual.
+    var anio = d.ultimaVenta.slice(0, 4);
+    var meses = d.meses.filter(function (m) { return m.slice(0, 4) === anio && m <= d.ultimaVenta; });
+    var mv = meses.filter(function (m) { return m >= d.primeraVenta; });
+    avisos.push('Año ' + anio + ': de ' + MESES[0] + ' a ' + (meses.length ? MESES[+meses[meses.length - 1].slice(5, 7) - 1] : '–') +
+      ' (hasta el último mes con ventas para medir las compras). Esta pestaña no usa el filtro de Fecha.');
     if (!meses.length) {
       aviso.hidden = false; aviso.textContent = 'No hay leads en el período elegido.';
       $('l-kpis').innerHTML = ''; $('l-cuerpo').hidden = true;
       return;
     }
     $('l-cuerpo').hidden = false;
-    if (f.parcial) avisos.push('Los leads se analizan por mes completo: se muestra' + (meses.length > 1 ? 'n los meses de ' + mesLargo(meses[0]) + ' a ' + mesLargo(meses[meses.length - 1]) : ' ' + mesLargo(meses[0])) + '.');
     if (mv.length < meses.length) avisos.push('Las compras se miden desde ' + mesLargo(d.primeraVenta) + ', cuando empiezan las ventas del archivo.');
     if (f.grupo !== 'propio') avisos.push('Las franquicias no están en el archivo de ventas: sus compras no se pueden medir.');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
@@ -178,6 +178,7 @@
     renderTipos(A);
     renderTendencia(meses);
     renderTablaCalif(porCalif);
+    renderMesAMes(meses);
     renderTabla('l-t-origen', porOrigen, function (k) { return k; }, 15, 'Origen');
     renderTabla('l-t-local', porLocal, nombreLocal, 0, 'Local');
   }
@@ -282,6 +283,29 @@
     ] }, options: op });
     $('l-leyenda-tendencia').innerHTML = '<span><i class="caja" style="background:#b3b3ff"></i>Leads ' + (anio - 1) + '</span>' +
       '<span><i class="caja" style="background:' + s1 + '"></i>Leads ' + anio + '</span><span><i style="border-color:#1f8a3b"></i>% que compró</span>';
+  }
+
+  /** Mes a mes del año: leads (y contra el año anterior), compradores, % que compró, facturación y velocidad. */
+  function renderMesAMes(meses) {
+    var por = resumir('A', est.datos.meses, function (o) { return o.mes; }).grupos;
+    var nuevos = resumir('A', est.datos.meses, function (o) { return o.mes + '|' + o.clave; }).grupos;
+    var tot = vacio(), totAnt = 0, totNuevos = 0;
+    var fila = function (nombre, x, ant, nv, total) {
+      var dif = ant ? x.leads / ant - 1 : null;
+      return '<tr><td class="izq">' + nombre + '</td><td>' + nf0.format(x.leads) + '</td>' +
+        '<td class="' + (dif == null ? '' : dif >= 0 ? 'pos-var' : 'neg') + '">' + (dif == null ? '–' : (dif >= 0 ? '+' : '−') + pct0(Math.abs(dif))) + '</td>' +
+        '<td>' + nf0.format(x.compraron) + '</td>' +
+        '<td class="celda-seg"' + (!total && conv(x) != null ? ' style="background:' + colorConv(conv(x)).fondo + ';color:' + colorConv(conv(x)).texto + '"' : '') + '>' + pct(conv(x)) + '</td>' +
+        '<td>' + millones(x.facturacion) + '</td><td>' + pct0(en3(x)) + '</td><td>' + pct0(x.compraron ? nv / x.compraron : null) + '</td></tr>';
+    };
+    var filas = meses.map(function (m) {
+      var x = por[m] || vacio(), ant = (por[mesMenos12(m)] || vacio()).leads, nv = (nuevos[m + '|nuevo'] || vacio()).compraron;
+      sumar(tot, x); totAnt += ant; totNuevos += nv;
+      return fila(mayus(MESES[+m.slice(5, 7) - 1]), x, ant, nv);
+    });
+    $('l-t-mes').innerHTML = '<thead><tr><th class="izq">Mes</th><th>Leads</th><th>vs año anterior</th><th>Compraron</th><th>% compró</th>' +
+      '<th>Facturación</th><th>Compra en 3 días</th><th>Compradores nuevos</th></tr></thead><tbody>' + filas.join('') + '</tbody>' +
+      '<tfoot>' + fila('Total del año', tot, totAnt, totNuevos, true) + '</tfoot>';
   }
 
   function renderTablaCalif(porCalif) {
