@@ -285,6 +285,7 @@ function escribirAnalisis(libro, r) {
   })));
   escribirValidacion(libro, r, leads);
   escribirCubo(libro, r, corte);
+  escribirCruceDetalle(libro, r);
   escribirVista(libro, r, corte);
   escribir(libro, 'info', [['dato', 'valor'],
     ['archivos', r.archivos.join(' + ')],
@@ -433,4 +434,24 @@ function escribirVista(libro, r, corte) {
   escribir(libro, 'vista', filas);
   libro.setActiveSheet(libro.getSheetByName('vista'));
   libro.moveActiveSheet(1);
+}
+
+/**
+ * "cruce_detalle" (PRIVADA, CON NOMBRES): cada lead que cruzó con un cliente del archivo de ventas, con su
+ * primera compra después del lead. Es para revisar el cruce a mano; no se usa en el tablero y no debe compartirse.
+ */
+function escribirCruceDetalle(libro, r) {
+  var filas = [['fecha_lead', 'local_lead', 'origen', 'calificacion', 'tipo', 'nombre_en_lead', 'nombre_en_ventas', 'tipo_cruce',
+    'compro_en_plazo', 'dias_hasta_compra', 'facturacion_en_plazo', 'local_compra', 'primera_compra_despues_del_lead', 'compras_previas_al_lead']];
+  r.leads.filter(function (l) { return l.cliente; }).forEach(function (l) {
+    var cs = r.compras[l.cliente] || [];
+    var despues = cs.filter(function (c) { return c.dia >= l.dia; })[0];
+    var previas = cs.filter(function (c) { return c.dia < l.dia; }).length;
+    filas.push([l.dia, l.local, origenLimpio(l.origen), l.calif,
+      l.yaEraCliente ? 'ya era cliente' : l.yaEraLead ? 'ya había sido lead' : 'nuevo',
+      l.nombreLead, r.nombreCliente[l.cliente] || '', l.tipoCruce,
+      l.dias != null ? 'sí' : 'no', l.dias != null ? l.dias : '', l.facturacion ? Math.round(l.facturacion) : '', l.localCompra || '',
+      despues ? despues.dia : '', previas]);
+  });
+  escribir(libro, 'cruce_detalle', filas);
 }
