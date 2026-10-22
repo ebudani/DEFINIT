@@ -275,12 +275,13 @@
       return ctx.datasetIndex === 2 ? ' Compraron: ' + pct(ctx.raw) : ' ' + ctx.dataset.label + ': ' + nf0.format(ctx.raw);
     } };
     dibujar('l-ch-tendencia', { type: 'bar', data: { labels: meses.map(mesCorto), datasets: [
-      { type: 'bar', label: 'Leads ' + anio, data: leads, backgroundColor: meses.map(function (m) { return mesesSel.indexOf(m) >= 0 ? s1 : '#b3b3ff'; }), maxBarThickness: 22, order: 3 },
-      { type: 'bar', label: 'Leads ' + (anio - 1), data: ant, backgroundColor: '#e3e3ea', maxBarThickness: 22, order: 4 },
+      // A la izquierda el año anterior (claro), a la derecha el año actual (oscuro).
+      { type: 'bar', label: 'Leads ' + (anio - 1), data: ant, backgroundColor: '#b3b3ff', maxBarThickness: 22, order: 3 },
+      { type: 'bar', label: 'Leads ' + anio, data: leads, backgroundColor: s1, maxBarThickness: 22, order: 4 },
       { type: 'line', label: '% compró', data: cv, yAxisID: 'y2', borderColor: '#1f8a3b', backgroundColor: '#1f8a3b', pointRadius: 4, borderWidth: 2, order: 1 }
     ] }, options: op });
-    $('l-leyenda-tendencia').innerHTML = '<span><i class="caja" style="background:' + s1 + '"></i>Leads ' + anio + ' (en azul, el período elegido)</span>' +
-      '<span><i class="caja" style="background:#e3e3ea"></i>Leads ' + (anio - 1) + '</span><span><i style="border-color:#1f8a3b"></i>% que compró</span>';
+    $('l-leyenda-tendencia').innerHTML = '<span><i class="caja" style="background:#b3b3ff"></i>Leads ' + (anio - 1) + '</span>' +
+      '<span><i class="caja" style="background:' + s1 + '"></i>Leads ' + anio + '</span><span><i style="border-color:#1f8a3b"></i>% que compró</span>';
   }
 
   function renderTablaCalif(porCalif) {
