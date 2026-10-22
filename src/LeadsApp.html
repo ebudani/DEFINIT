@@ -1,0 +1,326 @@
+<script>
+// Vista "Leads": cuántos leads entran, cuántos terminan comprando, cuánto facturan, cuánto tardan y de dónde
+// vienen, con los filtros Fecha / Grupo / Local del tablero. Lee getLeads() ("leads_cubo" de la Base comercial):
+// solo cantidades por mes, local, origen, calificación y tipo de lead, sin datos personales.
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var est = { datos: null, cargando: false, filtros: null };
+  var graficos = {};
+
+  var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var nf1 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  var nf0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+  function pct(v) { return v == null || !isFinite(v) ? '–' : nf1.format(v * 100) + '%'; }
+  function millones(v) { return '$' + nf1.format(v / 1e6) + ' M'; }
+  function miles(v) { return v == null || !isFinite(v) ? '–' : '$' + nf0.format(v / 1000) + ' mil'; }
+  function mesCorto(m) { var n = MESES[+m.slice(5, 7) - 1].slice(0, 3); return n.charAt(0).toUpperCase() + n.slice(1) + (m.slice(2, 4) ? ' ' + m.slice(2, 4) : ''); }
+  function mesLargo(m) { return MESES[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4); }
+  function mesMenos12(m) { return (+m.slice(0, 4) - 1) + m.slice(4); }
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  var TRAMOS = [['d0', 'Mismo día'], ['d1_3', '1 a 3 días'], ['d4_7', '4 a 7 días'], ['d8_15', '8 a 15 días'],
+    ['d16_30', '16 a 30 días'], ['d31_60', '31 a 60 días'], ['d61_90', '61 a 90 días']];
+  var TIPOS = [['nuevo', 'Nuevos'], ['ya_lead', 'Ya habían sido leads'], ['ya_cliente', 'Ya eran clientes']];
+  // Semáforo de conversión (% de leads que compraron).
+  var ESCALA = [
+    { desde: 0.18, fondo: '#1f8a3b', texto: '#ffffff', lbl: '18% o más' },
+    { desde: 0.12, fondo: '#8fd48f', texto: '#1a1a19', lbl: '12–18%' },
+    { desde: 0.06, fondo: '#f7c948', texto: '#1a1a19', lbl: '6–12%' },
+    { desde: -1, fondo: '#d03b3b', texto: '#ffffff', lbl: 'menos de 6%' }
+  ];
+  function colorConv(v) { return ESCALA.filter(function (e) { return v >= e.desde; })[0]; }
+
+  // ---------- Vista ----------
+  $('tab-leads').addEventListener('click', function () {
+    ['vista-ventas', 'vista-comercial', 'vista-clientes', 'fuente', 'c-fuente', 'cl-fuente'].forEach(function (id) { $(id).hidden = true; });
+    ['tab-ventas', 'tab-comercial', 'tab-clientes'].forEach(function (id) { $(id).setAttribute('aria-selected', 'false'); });
+    $('tab-leads').setAttribute('aria-selected', 'true');
+    $('vista-leads').hidden = false;
+    $('l-fuente').hidden = !est.datos;
+    if (!est.datos && !est.cargando) cargar(); else if (est.datos) render();
+  });
+  ['tab-ventas', 'tab-comercial', 'tab-clientes'].forEach(function (id) {
+    $(id).addEventListener('click', function () {
+      $('vista-leads').hidden = true; $('l-fuente').hidden = true;
+      $('tab-leads').setAttribute('aria-selected', 'false');
+    });
+  });
+  $('btn-actualizar').addEventListener('click', function () { if (!$('vista-leads').hidden && !est.cargando) cargar(); });
+  document.addEventListener('definit:filtros', function (e) {
+    est.filtros = e.detail;
+    if (!$('vista-leads').hidden && est.datos) render();
+  });
+
+  function cargar() {
+    est.cargando = true;
+    var estado = $('l-estado');
+    estado.hidden = false; estado.className = 'estado'; estado.textContent = 'Leyendo los leads…';
+    google.script.run
+      .withSuccessHandler(function (json) {
+        est.cargando = false;
+        var d = JSON.parse(json);
+        if (d.sinAcceso || d.sinDatos) {
+          estado.className = 'estado error';
+          estado.textContent = d.sinAcceso
+            ? 'Tu cuenta de Google no tiene acceso a la planilla "DEFINIT – Base comercial". Pedile acceso a quien administra el tablero.'
+            : 'Todavía no hay datos de leads en la base comercial.';
+          $('l-contenido').hidden = true;
+          return;
+        }
+        est.datos = preparar(d.cubo);
+        var x = est.datos;
+        $('l-fuente').textContent = 'Fuente: base de leads + ventas por ítem · leads de ' + mesLargo(x.meses[0]) + ' a ' + mesLargo(x.meses[x.meses.length - 1]) +
+          ' · ventas ' + x.info.ventas + ' · sin datos personales: solo cantidades';
+        $('l-fuente').hidden = $('vista-leads').hidden;
+        estado.hidden = true;
+        $('l-contenido').hidden = false;
+        render();
+      })
+      .withFailureHandler(function (err) {
+        est.cargando = false;
+        estado.className = 'estado error';
+        estado.textContent = 'No se pudieron leer los leads: ' + (err && err.message ? err.message : err);
+      })
+      .getLeads();
+  }
+
+  /** Cubo (filas con encabezado) -> objetos, meses disponibles y datos del cálculo. */
+  function preparar(cubo) {
+    var enc = cubo[0], filas = [], meses = {}, info = { ventas: '', plazo: '', corte: '' };
+    cubo.slice(1).forEach(function (f) {
+      if (f[0] === 'info') {
+        info.ventas = String(f[1] || '').replace(/^ventas /, '');
+        info.plazo = String(f[2] || '');
+        info.corte = String(f[3] || '').replace(/^no concretó hasta /, '');
+        return;
+      }
+      var o = {}; enc.forEach(function (c, i) { o[c] = f[i]; });
+      ['leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso']
+        .forEach(function (c) { o[c] = Number(o[c]) || 0; });
+      o.mes = String(o.mes); o.local = String(o.local); o.origen = String(o.origen); o.calificacion = String(o.calificacion);
+      filas.push(o); meses[o.mes] = true;
+    });
+    var primeraVenta = (info.ventas.match(/^(\d{4}-\d{2})/) || [])[1] || '2026-01';
+    var ultimaVenta = (info.ventas.match(/a (\d{4}-\d{2})/) || [])[1] || '9999-12';
+    return { filas: filas, meses: Object.keys(meses).sort(), info: info, primeraVenta: primeraVenta, ultimaVenta: ultimaVenta };
+  }
+
+  // ---------- Datos ----------
+  function enSeleccion(clave) {
+    var f = est.filtros;
+    if (!f) return clave !== '-';
+    if (f.local) return clave === f.local;
+    if (f.grupo === 'todos') return true;
+    return f.clavesGrupo.indexOf(clave) >= 0;
+  }
+  function nombreLocal(clave) {
+    var f = est.filtros;
+    if (clave === '-') return 'Sin local';
+    return (f && f.nombres && f.nombres[clave]) || mayus(clave);
+  }
+
+  function vacio() {
+    var x = { leads: 0, compraron: 0, facturacion: 0, dias_suma: 0, mismo_local: 0, no_concretaron: 0, en_curso: 0, presupuesto: 0, presupuestoComp: 0 };
+    TRAMOS.forEach(function (t) { x[t[0]] = 0; });
+    return x;
+  }
+  function sumar(x, o) {
+    ['leads', 'compraron', 'facturacion', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso'].forEach(function (c) { x[c] += o[c]; });
+    TRAMOS.forEach(function (t) { x[t[0]] += o[t[0]]; });
+    if (/presupuesto/i.test(o.calificacion)) { x.presupuesto += o.leads; x.presupuestoComp += o.compraron; }
+  }
+  /** Suma las filas de los meses dados para el Grupo / Local elegidos, en total y agrupadas por una clave. */
+  function resumir(meses, porClave) {
+    var tot = vacio(), grupos = {};
+    est.datos.filas.forEach(function (o) {
+      if (meses.indexOf(o.mes) < 0 || !enSeleccion(o.local)) return;
+      sumar(tot, o);
+      if (porClave) { var k = porClave(o); sumar(grupos[k] = grupos[k] || vacio(), o); }
+    });
+    tot.grupos = grupos;
+    return tot;
+  }
+  /** Mediana aproximada de días hasta la compra, a partir de los tramos. */
+  function medianaTramo(x) {
+    if (!x.compraron) return null;
+    var acum = 0;
+    for (var i = 0; i < TRAMOS.length; i++) { acum += x[TRAMOS[i][0]]; if (acum >= x.compraron / 2) return TRAMOS[i][1]; }
+    return null;
+  }
+
+  // ---------- Render ----------
+  function render() {
+    var d = est.datos, f = est.filtros || {};
+    var aviso = $('l-aviso'), avisos = [];
+    var ultimo = d.meses[d.meses.length - 1];
+    var desde = f.desde || d.meses[0], hasta = f.mes || ultimo;
+    // Si el período elegido va más allá del archivo de leads, se muestra hasta el último mes que tiene.
+    if (hasta > ultimo) {
+      avisos.push('El archivo de leads llega hasta ' + mesLargo(ultimo) + ': se muestra ' + (desde > ultimo ? mesLargo(ultimo) : 'hasta ese mes') + '.');
+      hasta = ultimo; if (desde > ultimo) desde = ultimo;
+    }
+    var meses = d.meses.filter(function (m) { return m >= desde && m <= hasta; });
+    // Para compras: solo meses con ventas.
+    var mesesVenta = meses.filter(function (m) { return m >= d.primeraVenta && m <= d.ultimaVenta; });
+    if (!meses.length) {
+      aviso.hidden = false; aviso.textContent = 'No hay leads en el período elegido (el archivo va de ' + mesLargo(d.meses[0]) + ' a ' + mesLargo(d.meses[d.meses.length - 1]) + ').';
+      $('l-kpis').innerHTML = ''; $('l-graficos').hidden = true; $('l-tablas').hidden = true;
+      return;
+    }
+    $('l-graficos').hidden = false; $('l-tablas').hidden = false;
+    if (f.parcial) avisos.push('Los leads se analizan por mes completo: para ' + f.periodo + ' se muestra' + (meses.length > 1 ? 'n los meses de ' + mesLargo(meses[0]) + ' a ' + mesLargo(meses[meses.length - 1]) : ' ' + mesLargo(meses[0])) + '.');
+    if (mesesVenta.length < meses.length) avisos.push('Las compras solo se pueden medir desde ' + mesLargo(d.primeraVenta) + ' (las ventas empiezan ahí): los indicadores de compra usan ' + (mesesVenta.length ? 'de ' + mesLargo(mesesVenta[0]) + ' a ' + mesLargo(mesesVenta[mesesVenta.length - 1]) : 'ningún mes') + '.');
+    if (f.grupo !== 'propio') avisos.push('Las franquicias no están en el archivo de ventas: sus compras no se pueden medir (figuran casi en 0%).');
+    avisos.push('Compró = el lead aparece comprando (cruce por nombre con las ventas) dentro de los ' + (d.info.plazo.replace(/^plazo /, '') || '90 días') + '. El cruce no encuentra a todos: los % son un piso.');
+    aviso.hidden = false; aviso.textContent = avisos.join(' ');
+
+    var todos = resumir(meses);
+    var r = resumir(mesesVenta, function (o) { return o.tipo; });
+    var anterior = resumir(meses.map(mesMenos12));
+    renderKpis(todos, r, anterior, meses);
+    renderEmbudo(r);
+    renderDias(r);
+    renderTipos(r);
+    renderTendencia(meses);
+    renderTabla('l-t-origen', resumir(mesesVenta, function (o) { return o.origen; }).grupos, function (k) { return k; }, 15);
+    renderTabla('l-t-local', resumir(mesesVenta, function (o) { return o.local; }).grupos, nombreLocal, 0);
+  }
+
+  function renderKpis(todos, r, ant, meses) {
+    var dif = ant.leads ? todos.leads / ant.leads - 1 : null;
+    var tres = r.compraron ? (r.d0 + r.d1_3) / r.compraron : null;
+    var nuevos = r.grupos.nuevo || vacio();
+    var tiles = [
+      { cls: 'hero', label: 'Leads', valor: nf0.format(todos.leads),
+        det: dif == null ? 'Sin datos del año anterior' : '<span class="' + (dif >= 0 ? 'pos-var' : 'neg') + '">' + (dif >= 0 ? '+' : '−') + pct(Math.abs(dif)) + '</span> vs mismo período ' + meses[0].slice(0, 4).replace(/\d+/, function (a) { return a - 1; }) },
+      { label: 'Compraron', valor: pct(r.leads ? r.compraron / r.leads : null), det: nf0.format(r.compraron) + ' de ' + nf0.format(r.leads) + ' leads' },
+      { label: 'Facturación de los que compraron', valor: millones(r.facturacion), det: 'Ticket por comprador ' + miles(r.compraron ? r.facturacion / r.compraron : null) },
+      { label: 'Tiempo hasta la compra', valor: medianaTramo(r) || '–', det: pct(tres) + ' compra en los primeros 3 días (mediana)' },
+      { label: 'Compradores nuevos', valor: pct(r.compraron ? nuevos.compraron / r.compraron : null), det: 'Primer contacto, sin compras ni leads previos' }
+    ];
+    $('l-kpis').innerHTML = tiles.map(function (k) {
+      return '<div class="kpi ' + (k.cls || '') + '"><div class="kpi-label">' + k.label + '</div><div class="kpi-valor">' + k.valor +
+        '</div><div class="kpi-det">' + k.det + '</div></div>';
+    }).join('');
+  }
+
+  function dibujar(id, config) {
+    if (graficos[id]) graficos[id].destroy();
+    graficos[id] = new Chart($(id), config);
+  }
+  function opciones() {
+    var grid = css('--grid'), muted = css('--muted'), ink = css('--ink');
+    return {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: css('--surface'), titleColor: ink, bodyColor: ink, borderColor: css('--axis'), borderWidth: 1, padding: 10 } },
+      scales: {
+        x: { grid: { display: false }, border: { color: css('--axis') }, ticks: { color: muted, maxRotation: 0, autoSkipPadding: 8 } },
+        y: { grid: { color: grid }, border: { display: false }, ticks: { color: muted }, beginAtZero: true }
+      }
+    };
+  }
+
+  function renderEmbudo(r) {
+    var pasos = [
+      ['Leads', r.leads], ['Calificados "Presupuesto"', r.presupuesto], ['Compraron', r.compraron],
+      ['No concretaron', r.no_concretaron], ['Todavía en curso', r.en_curso]
+    ];
+    var colores = [css('--series-1'), '#2a78d6', '#1f8a3b', '#d03b3b', '#b7b8c0'];
+    var op = opciones();
+    op.indexAxis = 'y';
+    op.scales.x.ticks.callback = function (v) { return nf0.format(v); };
+    op.scales.x.grid = { color: css('--grid') }; op.scales.y.grid = { display: false };
+    op.plugins.tooltip.callbacks = { label: function (ctx) { return ' ' + nf0.format(ctx.raw) + ' (' + pct(r.leads ? ctx.raw / r.leads : null) + ' de los leads)'; } };
+    dibujar('l-ch-embudo', { type: 'bar', data: { labels: pasos.map(function (p) { return p[0]; }), datasets: [{ data: pasos.map(function (p) { return p[1]; }),
+      backgroundColor: colores, maxBarThickness: 26, borderRadius: 4 }] }, options: op });
+    $('l-n-embudo').innerHTML = 'De cada 100 leads, <strong>' + nf1.format(r.leads ? r.compraron / r.leads * 100 : 0) + '</strong> compraron. ' +
+      'De los calificados "Presupuesto", compró el <strong>' + pct(r.presupuesto ? r.presupuestoComp / r.presupuesto : null) + '</strong>. ' +
+      '"No concretaron" = sin compra pasado el plazo; "en curso" = todavía dentro del plazo.';
+  }
+
+  function renderDias(r) {
+    var datos = TRAMOS.map(function (t) { return r.compraron ? r[t[0]] / r.compraron : 0; });
+    var op = opciones();
+    op.scales.y.ticks.callback = function (v) { return nf0.format(v * 100) + '%'; };
+    op.plugins.tooltip.callbacks = { label: function (ctx) { return ' ' + pct(ctx.raw) + ' de los compradores (' + nf0.format(r[TRAMOS[ctx.dataIndex][0]]) + ')'; } };
+    dibujar('l-ch-dias', { type: 'bar', data: { labels: TRAMOS.map(function (t) { return t[1]; }), datasets: [{ data: datos,
+      backgroundColor: TRAMOS.map(function (t, i) { return i < 2 ? css('--series-1') : '#b3b3ff'; }), maxBarThickness: 40, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] }, options: op });
+    var tres = r.compraron ? (r.d0 + r.d1_3) / r.compraron : null;
+    $('l-n-dias').innerHTML = 'El <strong>' + pct(tres) + '</strong> de los que compran lo hace en los primeros 3 días: la velocidad de respuesta define la venta. ' +
+      'Promedio ' + nf1.format(r.compraron ? r.dias_suma / r.compraron : 0) + ' días.';
+  }
+
+  function renderTipos(r) {
+    var g = r.grupos;
+    var leads = TIPOS.map(function (t) { return (g[t[0]] || vacio()).leads; });
+    var conv = TIPOS.map(function (t) { var x = g[t[0]] || vacio(); return x.leads ? x.compraron / x.leads : null; });
+    var op = opciones();
+    op.scales.y.ticks.callback = function (v) { return nf0.format(v); };
+    op.scales.y2 = { position: 'right', grid: { display: false }, border: { display: false }, beginAtZero: true, ticks: { color: css('--muted'), callback: function (v) { return nf0.format(v * 100) + '%'; } } };
+    op.plugins.tooltip.callbacks = { label: function (ctx) { return ctx.datasetIndex ? ' Compraron: ' + pct(ctx.raw) : ' Leads: ' + nf0.format(ctx.raw); } };
+    dibujar('l-ch-tipos', { type: 'bar', data: { labels: TIPOS.map(function (t) { return t[1]; }), datasets: [
+      { type: 'bar', data: leads, backgroundColor: '#b3b3ff', maxBarThickness: 48, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start', order: 2 },
+      { type: 'line', data: conv, yAxisID: 'y2', borderColor: '#1f8a3b', backgroundColor: '#1f8a3b', pointRadius: 5, borderWidth: 2, order: 1 }
+    ] }, options: op });
+    $('l-leyenda-tipos').innerHTML = '<span><i class="caja" style="background:#b3b3ff"></i>Leads</span><span><i style="border-color:#1f8a3b"></i>% que compró</span>';
+  }
+
+  function renderTendencia(mesesSel) {
+    var d = est.datos;
+    var anio = mesesSel[mesesSel.length - 1].slice(0, 4);
+    var meses = d.meses.filter(function (m) { return m.slice(0, 4) === anio; });
+    var por = {};
+    d.filas.forEach(function (o) {
+      if (!enSeleccion(o.local)) return;
+      var x = por[o.mes] = por[o.mes] || vacio(); sumar(x, o);
+    });
+    var leads = meses.map(function (m) { return (por[m] || vacio()).leads; });
+    var ant = meses.map(function (m) { return (por[mesMenos12(m)] || vacio()).leads; });
+    var conv = meses.map(function (m) { var x = por[m]; return x && x.leads && m >= d.primeraVenta && m <= d.ultimaVenta ? x.compraron / x.leads : null; });
+    var s1 = css('--series-1');
+    var op = opciones();
+    op.scales.y.ticks.callback = function (v) { return nf0.format(v); };
+    op.scales.y2 = { position: 'right', grid: { display: false }, border: { display: false }, beginAtZero: true, ticks: { color: css('--muted'), callback: function (v) { return nf0.format(v * 100) + '%'; } } };
+    op.plugins.tooltip.callbacks = { label: function (ctx) {
+      if (ctx.raw == null) return null;
+      return ctx.datasetIndex === 2 ? ' Compraron: ' + pct(ctx.raw) : ' ' + ctx.dataset.label + ': ' + nf0.format(ctx.raw);
+    } };
+    dibujar('l-ch-tendencia', { type: 'bar', data: { labels: meses.map(mesCorto), datasets: [
+      { type: 'bar', label: 'Leads ' + anio, data: leads, backgroundColor: meses.map(function (m) { return mesesSel.indexOf(m) >= 0 ? s1 : '#b3b3ff'; }), maxBarThickness: 22, order: 3 },
+      { type: 'bar', label: 'Leads ' + (anio - 1), data: ant, backgroundColor: '#e3e3ea', maxBarThickness: 22, order: 4 },
+      { type: 'line', label: '% compró', data: conv, yAxisID: 'y2', borderColor: '#1f8a3b', backgroundColor: '#1f8a3b', pointRadius: 4, borderWidth: 2, spanGaps: false, order: 1 }
+    ] }, options: op });
+    $('l-leyenda-tendencia').innerHTML = '<span><i class="caja" style="background:' + s1 + '"></i>Leads ' + anio + '</span>' +
+      '<span><i class="caja" style="background:#e3e3ea"></i>Leads ' + (anio - 1) + '</span><span><i style="border-color:#1f8a3b"></i>% que compró</span>';
+  }
+
+  /** Tabla por origen o por local, con semáforo de conversión. */
+  function renderTabla(id, grupos, nombre, maximo) {
+    var claves = Object.keys(grupos).sort(function (a, b) { return grupos[b].leads - grupos[a].leads; });
+    if (maximo) claves = claves.slice(0, maximo);
+    var fila = function (n, x, total) {
+      var c = x.leads ? x.compraron / x.leads : null, col = c == null ? null : colorConv(c);
+      return '<tr><td class="izq">' + esc(n) + '</td><td>' + nf0.format(x.leads) + '</td><td>' + nf0.format(x.compraron) + '</td>' +
+        '<td class="celda-seg"' + (col && !total ? ' style="background:' + col.fondo + ';color:' + col.texto + '"' : '') + '>' + pct(c) + '</td>' +
+        '<td>' + millones(x.facturacion) + '</td><td>' + miles(x.compraron ? x.facturacion / x.compraron : null) + '</td>' +
+        '<td>' + pct(x.compraron ? (x.d0 + x.d1_3) / x.compraron : null) + '</td>' +
+        '<td>' + nf0.format(x.no_concretaron) + '</td><td>' + nf0.format(x.en_curso) + '</td></tr>';
+    };
+    var tot = vacio(); claves.forEach(function (k) { var g = grupos[k]; Object.keys(tot).forEach(function (c) { tot[c] += g[c] || 0; }); });
+    $(id).innerHTML = '<thead><tr><th class="izq">' + (id === 'l-t-origen' ? 'Origen' : 'Local') + '</th><th>Leads</th><th>Compraron</th><th>% compró</th>' +
+      '<th>Facturación</th><th>Ticket</th><th>Compra en 3 días</th><th>No concretaron</th><th>En curso</th></tr></thead><tbody>' +
+      claves.map(function (k) { return fila(nombre(k), grupos[k]); }).join('') + '</tbody><tfoot>' +
+      fila(maximo ? 'Total de estos ' + claves.length : 'Total', tot, true) + '</tfoot>';
+  }
+
+  // Escala del semáforo (una vez).
+  $('l-escala').innerHTML = '<span style="margin-right:6px">% compró:</span>' + ESCALA.map(function (e) {
+    return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px"><i style="background:' + e.fondo + '"></i>' + e.lbl + '</span>';
+  }).join('');
+})();
+</script>
