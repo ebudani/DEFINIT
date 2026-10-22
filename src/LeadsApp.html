@@ -238,7 +238,8 @@
 
   function renderEmbudo(A, porCalif) {
     var pre = porCalif.Presupuesto || vacio();
-    var pasos = [['Leads', A.leads], ['Calificados "Presupuesto"', pre.leads], ['Compraron', A.compraron], ['No concretaron', A.no_concretaron], ['Todavía en curso', A.en_curso]];
+    var pasos = [['Entraron (leads)', A.leads], ['Con presupuesto', pre.leads], ['Compraron', A.compraron],
+      ['No compraron (ya pasaron 90 días)', A.no_concretaron], ['Todavía pueden comprar', A.en_curso]];
     var colores = [css('--series-1'), '#2a78d6', '#1f8a3b', '#d03b3b', '#b7b8c0'];
     var op = opciones();
     op.indexAxis = 'y';
@@ -247,7 +248,9 @@
     op.plugins.tooltip.callbacks = { label: function (ctx) { return ' ' + nf0.format(ctx.raw) + ' (' + pct(A.leads ? ctx.raw / A.leads : null) + ' de los leads)'; } };
     dibujar('l-ch-embudo', { type: 'bar', data: { labels: pasos.map(function (p) { return p[0]; }), datasets: [{ data: pasos.map(function (p) { return p[1]; }),
       backgroundColor: colores, maxBarThickness: 26, borderRadius: 4 }] }, options: op });
-    $('l-n-embudo').innerHTML = 'De cada 100 leads, <strong>' + nf1.format((conv(A) || 0) * 100) + '</strong> compraron. "No concretaron" = sin compra pasado el plazo; "en curso" = todavía dentro del plazo.';
+    $('l-n-embudo').innerHTML = 'De cada 100 personas que dejaron sus datos, <strong>' + nf0.format((conv(A) || 0) * 100) + '</strong> compraron dentro de los 90 días (incluye a quienes se llevaron la cortesía de 3 axilas).<br>' +
+      '<strong>Con presupuesto</strong>: el equipo les envió presupuesto. <strong>No compraron</strong>: ya pasaron los 90 días sin comprar. ' +
+      '<strong>Todavía pueden comprar</strong>: dejaron sus datos hace menos de 90 días.';
   }
 
   function renderDias(A) {
