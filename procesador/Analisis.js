@@ -273,7 +273,7 @@ function escribirAnalisis(libro, r) {
   var total = agrupar(leads, function () { return 'TOTAL'; }, corte);
   escribir(libro, 'por_mes', enc('mes').concat(agrupar(leads, function (l) { return l.dia.slice(0, 7); }, corte), total));
   escribir(libro, 'por_local', enc('local').concat(agrupar(leads, function (l) { return l.local; }, corte), total));
-  var origenes = agrupar(leads, function (l) { return l.origen; }, corte).sort(function (a, b) { return b[1] - a[1]; });
+  var origenes = agrupar(leads, function (l) { return origenLimpio(l.origen); }, corte).sort(function (a, b) { return b[1] - a[1]; });
   escribir(libro, 'por_origen', enc('origen').concat(origenes, total));
   escribir(libro, 'por_calificacion', enc('calificacion').concat(agrupar(leads, function (l) { return l.calif; }, corte), total));
   // Días hasta la primera compra.
@@ -285,6 +285,7 @@ function escribirAnalisis(libro, r) {
   })));
   escribirValidacion(libro, r, leads);
   escribirCubo(libro, r, corte);
+  escribirVista(libro, r, corte);
   escribir(libro, 'info', [['dato', 'valor'],
     ['archivos', r.archivos.join(' + ')],
     ['calculado', fecha(new Date())],
@@ -359,7 +360,7 @@ function escribirCubo(libro, r, corte) {
   var g = {};
   r.leads.forEach(function (l) {
     var tipo = l.yaEraCliente ? 'ya_cliente' : l.yaEraLead ? 'ya_lead' : 'nuevo';
-    var k = [l.dia.slice(0, 7), l.local, l.origen.replace(/\|/g, '/'), l.calif, tipo].join('|');
+    var k = [l.dia.slice(0, 7), l.local, origenLimpio(l.origen), l.calif, tipo].join('|');
     var x = g[k] = g[k] || { leads: 0, compraron: 0, fact: 0, d0: 0, d1: 0, d4: 0, d8: 0, d16: 0, d31: 0, d61: 0, dias: 0, mismo: 0, noConc: 0, enCurso: 0 };
     x.leads++;
     if (l.dias != null) {
@@ -380,5 +381,56 @@ function escribirCubo(libro, r, corte) {
   escribir(libro, 'cubo', filas);
   var hoja = libro.getSheetByName('cubo');
   libro.setActiveSheet(hoja);
+  libro.moveActiveSheet(1);
+}
+
+/** Origen sin datos personales: si alguien cargó un mail o un teléfono en vez de la campaña, queda "otro". */
+function origenLimpio(o) {
+  o = String(o || '-').replace(/\|/g, '/');
+  return /@|\d{7,}/.test(o) ? 'otro (dato no válido)' : o;
+}
+
+/**
+ * "vista": versión compacta para la sección Leads del tablero (va primera). Bloques:
+ *  A  mes | local | tipo      -> leads, compraron, facturación, tramos de días, no concretaron, en curso
+ *  B  mes | local | calificación -> leads, compraron, compraron en 3 días
+ *  C  mes | local | origen (los 25 con más leads; el resto "otros") -> leads, compraron, facturación, compraron en 3 días
+ */
+function escribirVista(libro, r, corte) {
+  var cuenta = {};
+  r.leads.forEach(function (l) { var o = origenLimpio(l.origen); cuenta[o] = (cuenta[o] || 0) + 1; });
+  var top = {};
+  Object.keys(cuenta).sort(function (a, b) { return cuenta[b] - cuenta[a]; }).slice(0, 25).forEach(function (o) { top[o] = true; });
+  var A = {}, B = {}, C = {};
+  var sumar = function (mapa, k, l, completo) {
+    var x = mapa[k] = mapa[k] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    x[0]++;
+    if (l.dias != null) {
+      x[1]++; x[2] += l.facturacion || 0;
+      var d = l.dias, i = d === 0 ? 3 : d <= 3 ? 4 : d <= 7 ? 5 : d <= 15 ? 6 : d <= 30 ? 7 : d <= 60 ? 8 : 9;
+      x[i]++; x[10] += d;
+      if (l.localCompra === l.local) x[11]++;
+    } else if (l.dia >= r.minVenta && l.dia <= corte) x[12]++;
+    else if (l.dia >= r.minVenta) x[13]++;
+  };
+  r.leads.forEach(function (l) {
+    var mes = l.dia.slice(0, 7), tipo = l.yaEraCliente ? 'ya_cliente' : l.yaEraLead ? 'ya_lead' : 'nuevo';
+    var o = origenLimpio(l.origen);
+    sumar(A, ['A', mes, l.local, tipo].join('|'), l);
+    sumar(B, ['B', mes, l.local, l.calif].join('|'), l);
+    sumar(C, ['C', mes, l.local, top[o] ? o : 'otros'].join('|'), l);
+  });
+  var filas = [['bloque', 'mes', 'local', 'clave', 'leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso']];
+  [A, B, C].forEach(function (mapa) {
+    Object.keys(mapa).sort().forEach(function (k) {
+      var x = mapa[k], partes = k.split('|');
+      var corto = partes[0] !== 'A'; // en B y C alcanza con leads, compraron, facturación y los primeros tramos
+      filas.push(partes.concat(corto ? [x[0], x[1], Math.round(x[2]), x[3], x[4], '', '', '', '', '', '', '', x[12], x[13]]
+        : [x[0], x[1], Math.round(x[2]), x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]]));
+    });
+  });
+  filas.push(['info', 'ventas ' + r.minVenta + ' a ' + r.maxVenta, 'plazo ' + DIAS_CONVERSION + ' días', 'no concretó hasta ' + corte, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+  escribir(libro, 'vista', filas);
+  libro.setActiveSheet(libro.getSheetByName('vista'));
   libro.moveActiveSheet(1);
 }
