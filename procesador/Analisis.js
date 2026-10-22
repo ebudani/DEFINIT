@@ -10,7 +10,7 @@
 
 var LEADS_BASE_ID = '19XNbeIznMXqr8zYC6PpSMU1OkVBWM94s';
 var NOMBRE_ANALISIS = 'DEFINIT – Análisis de leads (privado)';
-var DIAS_CONVERSION = 60; // una compra cuenta para el lead si ocurre dentro de estos días
+var DIAS_CONVERSION = 90; // una compra cuenta para el lead si ocurre dentro de estos días
 
 /** La ejecución automática lo programa una sola vez; corre en su propia ejecución (tarda unos minutos). */
 function programarAnalisisLeads() {
@@ -206,7 +206,7 @@ function escribirAnalisis(libro, r) {
   escribir(libro, 'por_origen', enc('origen').concat(origenes, total));
   escribir(libro, 'por_calificacion', enc('calificacion').concat(agrupar(leads, function (l) { return l.calif; }, corte), total));
   // Días hasta la primera compra.
-  var tramos = [[0, 0, 'el mismo día'], [1, 3, '1 a 3 días'], [4, 7, '4 a 7 días'], [8, 15, '8 a 15 días'], [16, 30, '16 a 30 días'], [31, 60, '31 a 60 días']];
+  var tramos = [[0, 0, 'el mismo día'], [1, 3, '1 a 3 días'], [4, 7, '4 a 7 días'], [8, 15, '8 a 15 días'], [16, 30, '16 a 30 días'], [31, 60, '31 a 60 días'], [61, 90, '61 a 90 días']];
   var conv = leads.filter(function (l) { return l.dias != null; });
   escribir(libro, 'dias_hasta_compra', [['tramo', 'compradores', 'pct']].concat(tramos.map(function (tr) {
     var n = conv.filter(function (l) { return l.dias >= tr[0] && l.dias <= tr[1]; }).length;
@@ -243,13 +243,13 @@ function escribirValidacion(libro, r, leads) {
 
   // 2. Leads calificados "Compró" que no tienen compra atribuida: por qué.
   var motivos = { 'nombre no encontrado en ventas': 0, 'nombre ambiguo (varios clientes)': 0, 'compró antes del lead': 0,
-    'compró después de los 60 días': 0, 'cliente encontrado sin compras con venta > 0 cerca': 0 };
+    'compró después del plazo (90 días)': 0, 'cliente encontrado sin compras con venta > 0 cerca': 0 };
   leads.filter(function (l) { return /compr/i.test(l.calif) && l.dias == null; }).forEach(function (l) {
     if (l.tipoCruce === 'ambiguo') { motivos['nombre ambiguo (varios clientes)']++; return; }
     if (!l.cliente) { motivos['nombre no encontrado en ventas']++; return; }
     var cs = r.compras[l.cliente] || [];
     if (cs.some(function (c) { return c.dia < l.dia; }) && !cs.some(function (c) { return c.dia >= l.dia; })) motivos['compró antes del lead']++;
-    else if (cs.some(function (c) { return c.dia >= l.dia && diasEntre(l.dia, c.dia) > DIAS_CONVERSION; })) motivos['compró después de los 60 días']++;
+    else if (cs.some(function (c) { return c.dia >= l.dia && diasEntre(l.dia, c.dia) > DIAS_CONVERSION; })) motivos['compró después del plazo (90 días)']++;
     else motivos['cliente encontrado sin compras con venta > 0 cerca']++;
   });
   escribir(libro, 'validacion_compro', [['motivo', 'leads']].concat(Object.keys(motivos).map(function (k) { return [k, motivos[k]]; })));
