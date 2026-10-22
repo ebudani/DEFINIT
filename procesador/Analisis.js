@@ -126,9 +126,19 @@ function calcularAnalisisLeads() {
         }
       }
       leads.push({ dia: f.dia, persona: f.persona, cliente: cliente, tipoCruce: tipo,
-        nombreLead: (String(t.col.nombre[i] || '') + ' ' + String(t.col.apellido[i] || '')).trim(),
+        nombreLead: (String(t.col.nombre[i] || '') + ' ' + String(t.col.apellido[i] || '')).trim(), tkL: tkL,
         local: claveLead(t.col.local[i]), origen: reparar(String(t.col.origen[i] || '-')).trim() || '-',
         calif: reparar(String(t.col.calificacion[i] || '-')).trim() || '-' });
+    });
+
+    // Cruce flexible para los que no cruzaron por nombre: apodos, segundo nombre o un error de tipeo,
+    // confirmado porque ese cliente compró en el mismo local del lead dentro del plazo.
+    var indice = indiceTokens(compras);
+    leads.forEach(function (l) {
+      if (l.cliente || l.tipoCruce === 'ambiguo' || l.tkL.length < 2) return;
+      var k = cruceFlexible(l, indice, compras);
+      if (k === 'ambiguo') l.tipoCruce = 'ambiguo';
+      else if (k) { l.cliente = k; l.tipoCruce = 'flexible'; }
     });
 
     // Leads anteriores de la misma persona.
@@ -172,6 +182,47 @@ function diasEntre(a, b) {
   return Math.round((ub - ua) / 864e5);
 }
 function sumarDiasIso(iso, n) { return Utilities.formatDate(new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) + n * 864e5), 'UTC', 'yyyy-MM-dd'); }
+/** Índice token -> clientes (claves de nombre) para buscar candidatos sin recorrer todos los clientes. */
+function indiceTokens(compras) {
+  var idx = {};
+  Object.keys(compras).forEach(function (k) { k.split(' ').forEach(function (t) { if (t.length >= 3) (idx[t] = idx[t] || []).push(k); }); });
+  return idx;
+}
+
+/** Dos partes del nombre "iguales": idénticas, una es el comienzo de la otra (Cami / Camila) o un error de tipeo. */
+function tokenParecido(a, b) {
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) >= 4 && (a.indexOf(b) === 0 || b.indexOf(a) === 0)) return true;
+  return Math.min(a.length, b.length) >= 5 && Math.abs(a.length - b.length) <= 1 && distancia1(a, b);
+}
+function distancia1(a, b) { // ¿a lo sumo una letra distinta, de más o de menos?
+  var i = 0, j = 0, dif = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++dif > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return dif + (a.length - i) + (b.length - j) <= 1;
+}
+
+/** Cliente que corresponde a un lead sin cruce exacto, o 'ambiguo', o null. */
+function cruceFlexible(l, indice, compras) {
+  var propios = l.tkL.filter(function (t) { return t.length >= 3 && indice[t]; })
+    .sort(function (a, b) { return indice[a].length - indice[b].length; }).slice(0, 2);
+  var cands = {};
+  propios.forEach(function (t) { indice[t].forEach(function (k) { cands[k] = true; }); });
+  var hasta = sumarDiasIso(l.dia, DIAS_CONVERSION);
+  var ok = Object.keys(cands).filter(function (k) {
+    var tc = k.split(' '), usados = {}, comunes = 0;
+    l.tkL.forEach(function (t) {
+      for (var j = 0; j < tc.length; j++) if (!usados[j] && tokenParecido(t, tc[j])) { usados[j] = true; comunes++; break; }
+    });
+    if (comunes < 2) return false;
+    return compras[k].some(function (c) { return c.local === l.local && c.dia >= l.dia && c.dia <= hasta; });
+  });
+  return ok.length === 1 ? ok[0] : ok.length > 1 ? 'ambiguo' : null;
+}
+
 function contarCruce(leads) { var c = {}; leads.forEach(function (l) { c[l.tipoCruce] = (c[l.tipoCruce] || 0) + 1; }); return c; }
 
 // ---------- Resultados ----------
@@ -241,6 +292,7 @@ function escribirAnalisis(libro, r) {
     ['leads en la base (todos, sin repetidos dentro de las 24 h)', r.leads.length],
     ['cruce por nombre completo', r.cruce.completo || 0],
     ['cruce por primer nombre + apellido', r.cruce.corto || 0],
+    ['cruce flexible (apodo / segundo nombre / tipeo + mismo local + compra dentro del plazo)', r.cruce.flexible || 0],
     ['nombre ambiguo (no se cruzó)', r.cruce.ambiguo || 0],
     ['sin compras con ese nombre', r.cruce.sin || 0],
     ['regla', 'Compró = compra con venta neta > 0 dentro de los ' + DIAS_CONVERSION + ' días del lead. "No concretó" solo para leads hasta el ' + corte + '; los posteriores quedan "en curso".'],
@@ -291,6 +343,7 @@ function escribirValidacion(libro, r, leads) {
   };
   agregar('A. cruce por nombre completo y compró', elegir(leads.filter(function (l) { return l.tipoCruce === 'completo' && l.dias != null; }), 15));
   agregar('B. cruce por primer nombre + apellido y compró', elegir(leads.filter(function (l) { return l.tipoCruce === 'corto' && l.dias != null; }), 15));
+  agregar('D. cruce flexible y compró', elegir(leads.filter(function (l) { return l.tipoCruce === 'flexible' && l.dias != null; }), 15));
   agregar('C. calificado "Compró" sin compra encontrada', elegir(leads.filter(function (l) { return /compr/i.test(l.calif) && l.dias == null; }), 15));
   escribir(libro, 'validacion_muestra', muestra);
 }
