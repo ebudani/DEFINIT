@@ -81,6 +81,8 @@ function procesar() {
   if (!libro.getSheetByName('evup_estructura')) {
     try { probarEstructura(); } catch (e) { escribir(libro, 'evup_estructura', [['error'], [String(e && e.message || e)]]); }
   }
+  // Análisis privado de leads (Analisis.js): se programa una sola vez y corre aparte.
+  try { programarAnalisisLeads(); } catch (e) { Logger.log('No se pudo programar el análisis de leads: ' + e); }
 }
 
 // ---------- Drive ----------
