@@ -189,6 +189,9 @@
     renderKpis(todos, A, anterior, meses, limpio, completos);
     renderEmbudo(A, porCalif);
     renderDias(A);
+    $('l-n-cuando').textContent = 'Personas que entraron como lead entre ' + MESES[+mv[0].slice(5, 7) - 1] + ' y ' + MESES[+mv[mv.length - 1].slice(5, 7) - 1] +
+      ' de ' + mv[0].slice(0, 4) + ', en locales propios' + (f.local ? ' (' + nombreLocal(f.local) + ')' : '') +
+      ', y compraron dentro de los 90 días siguientes a su lead. Días desde el lead hasta la primera compra.';
     renderTipos(A);
     renderTendencia(meses);
     renderTablaCalif(porCalif);
