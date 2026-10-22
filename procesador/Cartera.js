@@ -12,6 +12,9 @@ var PATRON_CARTERA = /^cartera de clientes.*\.xlsx$/i;
 var ESTADOS_VENTA = { 'Finalizado': true, 'Pago': true, 'Parcialmente Cancelado': true };
 
 function analizarLeadsCartera() {
+  // Si corre por el disparador automático, el disparador se borra (es de una sola vez).
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'analizarLeadsCartera') ScriptApp.deleteTrigger(t); });
+  var props = PropertiesService.getScriptProperties();
   var inicio = Date.now(), libro = libroAnalisis(), temporales = [];
   try {
     var archivo = masRecienteEn(CARPETA_LEADS_ID, PATRON_CARTERA);
@@ -87,6 +90,8 @@ function analizarLeadsCartera() {
     });
 
     escribirVistaCartera(libro, leads, maxVenta, corte);
+    props.setProperty('carteraFirma', firmaCartera());
+    props.deleteProperty('carteraProgramado');
     escribir(libro, 'info', [['dato', 'valor'],
       ['archivos', archivo.getName() + ' + ' + DriveApp.getFileById(LEADS_BASE_ID).getName()],
       ['calculado', fecha_(new Date())],
@@ -95,9 +100,26 @@ function analizarLeadsCartera() {
       ['leads (sin repetidos 24 h)', leads.length],
       ['segundos: cartera / total', segCartera + ' / ' + Math.round((Date.now() - inicio) / 1000)],
       ['privacidad', 'Solo cantidades: ningún nombre, mail ni teléfono.']]);
+  } catch (e) {
+    props.deleteProperty('carteraProgramado');
+    throw e;
   } finally {
     temporales.forEach(function (id) { try { Drive.Files.remove(id); } catch (e) { /* ya no está */ } });
   }
+}
+
+/** Firma de los archivos de la carpeta de leads: si cambia la cartera o la base de leads, hay que recalcular. */
+function firmaCartera() {
+  var c = masRecienteEn(CARPETA_LEADS_ID, PATRON_CARTERA), l = DriveApp.getFileById(LEADS_BASE_ID);
+  return (c ? c.getId() + ':' + c.getLastUpdated().getTime() : '-') + '|' + l.getLastUpdated().getTime() + '|v1';
+}
+
+/** Lo llama la ejecución de cada hora: si cambiaron los archivos, programa el cruce (corre aparte, tarda varios minutos). */
+function programarCartera() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('carteraProgramado') || props.getProperty('carteraFirma') === firmaCartera()) return;
+  ScriptApp.newTrigger('analizarLeadsCartera').timeBased().after(60 * 1000).create();
+  props.setProperty('carteraProgramado', new Date().toISOString());
 }
 
 function fecha_(d) { return Utilities.formatDate(d, 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd HH:mm'); }
@@ -141,7 +163,9 @@ function escribirVistaCartera(libro, leads, maxVenta, corte) {
   });
   filas.push(['info', 'ventas 2018-01-01 a ' + Utilities.formatDate(new Date(maxVenta), 'UTC', 'yyyy-MM-dd'), 'plazo ' + DIAS_CONVERSION + ' días',
     'no concretó hasta ' + Utilities.formatDate(new Date(corte), 'UTC', 'yyyy-MM-dd'), '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-  escribir(libro, 'vista', filas);
+  escribir(libro, 'vista', filas.map(function (f) { return f.slice(); }));
   libro.setActiveSheet(libro.getSheetByName('vista'));
   libro.moveActiveSheet(1);
+  // La sección Leads del tablero lee esta pestaña de la Base comercial (solo cantidades por mes, local, tipo, calificación y origen).
+  escribir(base(), 'leads_vista', filas);
 }
