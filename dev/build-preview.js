@@ -17,8 +17,8 @@ const comercial = fs.existsSync(rutaComercial) ? fs.readFileSync(rutaComercial, 
 // Datos de clientes de prueba (dev/clientes.json: copia de la "Base comercial").
 const rutaClientes = path.join(__dirname, 'clientes.json');
 const clientes = fs.existsSync(rutaClientes) ? fs.readFileSync(rutaClientes, 'utf8') : JSON.stringify({ sinAcceso: true });
-// Leads de prueba (dev/leads_cubo.json: la pestaña "cubo" del análisis privado, sin datos personales).
-const rutaLeads = path.join(__dirname, 'leads_cubo.json');
+// Leads de prueba (dev/leads_vista.json: la pestaña "vista" del análisis privado, sin datos personales).
+const rutaLeads = path.join(__dirname, 'leads_vista.json');
 const leads = fs.existsSync(rutaLeads) ? fs.readFileSync(rutaLeads, 'utf8') : JSON.stringify({ sinDatos: true });
 
 const incluir = (nombre) => fs.readFileSync(path.join(raiz, 'src', nombre + '.html'), 'utf8');

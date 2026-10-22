@@ -14,3 +14,4 @@ dev/leads.json
 node_modules/
 .claude/
 dev/leads_cubo.json
+dev/leads_vista.json

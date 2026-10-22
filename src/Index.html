@@ -219,26 +219,32 @@
     <div id="l-contenido" hidden>
       <p class="aviso" id="l-aviso" hidden></p>
       <section class="kpis" id="l-kpis"></section>
-      <div id="l-graficos">
+      <div id="l-cuerpo">
+        <section class="panel resumen-leads">
+          <div class="panel-head"><h2 class="por-local" data-titulo="Resumen">Resumen</h2></div>
+          <div id="l-resumen"></div>
+        </section>
         <div class="grid-2">
           <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Embudo: del lead a la compra">Embudo: del lead a la compra</h2><p class="nota" id="l-n-embudo"></p></div>
             <div class="chart"><canvas id="l-ch-embudo"></canvas></div></section>
           <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="¿Cuánto tardan en comprar?">¿Cuánto tardan en comprar?</h2><p class="nota" id="l-n-dias"></p></div>
             <div class="chart"><canvas id="l-ch-dias"></canvas></div></section>
-          <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Nuevos, ya leads y ya clientes">Nuevos, ya leads y ya clientes</h2><p class="nota">Nuevos = primer contacto, sin compras ni leads previos. Ya habían sido leads = mismo teléfono / mail con un lead anterior (después de 24 h). Ya eran clientes = compraron antes del lead: clientes que vuelven a consultar.</p></div>
+          <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Nuevos, ya leads y ya clientes">Nuevos, ya leads y ya clientes</h2><p class="nota">Nuevos = primer contacto, sin compras ni leads previos. Ya habían sido leads = mismo teléfono / mail con un lead anterior (más de 24 h antes). Ya eran clientes = compraron antes del lead: clientes que vuelven a consultar.</p></div>
             <div class="leyenda" id="l-leyenda-tipos"></div><div class="chart"><canvas id="l-ch-tipos"></canvas></div></section>
-          <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Leads por mes y % que compró">Leads por mes y % que compró</h2><p class="nota">Barras: leads del año y del año anterior. Línea: % de esos leads que compró (desde que hay ventas). En azul, el período elegido.</p></div>
+          <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Leads por mes y % que compró">Leads por mes y % que compró</h2><p class="nota">Barras: leads del año y del año anterior. Línea: % que compró (desde que hay ventas).</p></div>
             <div class="leyenda" id="l-leyenda-tendencia"></div><div class="chart"><canvas id="l-ch-tendencia"></canvas></div></section>
+          <section class="panel"><div class="panel-head"><h2>Cuándo compran</h2><p class="nota">Días desde el lead hasta la primera compra.</p></div>
+            <div class="tabla-scroll"><table class="ranking-com" id="l-t-dias"></table></div></section>
+          <section class="panel"><div class="panel-head"><h2>Según la calificación del equipo</h2><p class="nota">Calificación cargada en el sistema de leads contra lo que realmente compró.</p></div>
+            <div class="tabla-scroll"><table class="ranking-com" id="l-t-calif"></table></div></section>
         </div>
-      </div>
-      <div id="l-tablas">
         <div class="escala" id="l-escala"></div>
         <section class="panel">
           <div class="panel-head"><h2>Por origen (los 15 con más leads)</h2><p class="nota">Compra en 3 días = % de los compradores que compró en los primeros 3 días.</p></div>
           <div class="tabla-scroll"><table class="ranking-com" id="l-t-origen"></table></div>
         </section>
         <section class="panel">
-          <div class="panel-head"><h2>Por local</h2><p class="nota">Local donde entró el lead. El 85% compra en ese mismo local.</p></div>
+          <div class="panel-head"><h2>Por local</h2><p class="nota">Local donde entró el lead (la gran mayoría compra en ese mismo local).</p></div>
           <div class="tabla-scroll"><table class="ranking-com" id="l-t-local"></table></div>
         </section>
       </div>
