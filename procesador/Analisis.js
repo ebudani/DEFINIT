@@ -284,6 +284,7 @@ function escribirAnalisis(libro, r) {
     return [tr[2], n, conv.length ? Math.round(n / conv.length * 1000) / 10 : ''];
   })));
   escribirValidacion(libro, r, leads);
+  escribirCubo(libro, r, corte);
   escribir(libro, 'info', [['dato', 'valor'],
     ['archivos', r.archivos.join(' + ')],
     ['calculado', fecha(new Date())],
@@ -346,4 +347,38 @@ function escribirValidacion(libro, r, leads) {
   agregar('D. cruce flexible y compró', elegir(leads.filter(function (l) { return l.tipoCruce === 'flexible' && l.dias != null; }), 15));
   agregar('C. calificado "Compró" sin compra encontrada', elegir(leads.filter(function (l) { return /compr/i.test(l.calif) && l.dias == null; }), 15));
   escribir(libro, 'validacion_muestra', muestra);
+}
+
+/**
+ * "cubo": una fila por mes del lead, local, origen, calificación y tipo (nuevo / ya era cliente / ya era lead),
+ * con cantidades. Es lo que usa la vista Leads del tablero (con los filtros de Fecha, Grupo y Local).
+ * Incluye 2025 (solo leads: las ventas empiezan en 2026) para comparar contra el año anterior.
+ * Va primera para poder exportarla como CSV.
+ */
+function escribirCubo(libro, r, corte) {
+  var g = {};
+  r.leads.forEach(function (l) {
+    var tipo = l.yaEraCliente ? 'ya_cliente' : l.yaEraLead ? 'ya_lead' : 'nuevo';
+    var k = [l.dia.slice(0, 7), l.local, l.origen.replace(/\|/g, '/'), l.calif, tipo].join('|');
+    var x = g[k] = g[k] || { leads: 0, compraron: 0, fact: 0, d0: 0, d1: 0, d4: 0, d8: 0, d16: 0, d31: 0, d61: 0, dias: 0, mismo: 0, noConc: 0, enCurso: 0 };
+    x.leads++;
+    if (l.dias != null) {
+      x.compraron++; x.fact += l.facturacion || 0; x.dias += l.dias;
+      var d = l.dias;
+      if (d === 0) x.d0++; else if (d <= 3) x.d1++; else if (d <= 7) x.d4++; else if (d <= 15) x.d8++; else if (d <= 30) x.d16++; else if (d <= 60) x.d31++; else x.d61++;
+      if (l.localCompra === l.local) x.mismo++;
+    } else if (l.dia >= r.minVenta && l.dia <= corte) x.noConc++;
+    else if (l.dia >= r.minVenta) x.enCurso++;
+  });
+  var filas = [['mes', 'local', 'origen', 'calificacion', 'tipo', 'leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15',
+    'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso']];
+  Object.keys(g).sort().forEach(function (k) {
+    var x = g[k];
+    filas.push(k.split('|').concat([x.leads, x.compraron, Math.round(x.fact), x.d0, x.d1, x.d4, x.d8, x.d16, x.d31, x.d61, x.dias, x.mismo, x.noConc, x.enCurso]));
+  });
+  filas.push(['info', 'ventas ' + r.minVenta + ' a ' + r.maxVenta, 'plazo ' + DIAS_CONVERSION + ' días', 'no concretó hasta ' + corte, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+  escribir(libro, 'cubo', filas);
+  var hoja = libro.getSheetByName('cubo');
+  libro.setActiveSheet(hoja);
+  libro.moveActiveSheet(1);
 }
