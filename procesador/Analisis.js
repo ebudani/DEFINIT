@@ -65,7 +65,7 @@ function calcularAnalisisLeads() {
     var hojasV = SpreadsheetApp.openById(tv).getSheets();
     var v = tablaCon(hojasV, { fecha: /^fecha de pago$/i, local: /^establecimiento$/i, cliente: /^cliente$/i,
       cortesia: /cortes[íi]a/i, neto: /^v\.?\s*neto$/i });
-    var compras = {}, porPar = {}, minVenta = null, maxVenta = null;
+    var compras = {}, porPar = {}, minVenta = null, maxVenta = null, nombreCliente = {};
     for (var i = 0; i < v.n; i++) {
       var dia = diaDe(v.col.fecha[i]), neto = num(v.col.neto[i]);
       if (!dia) continue;
@@ -77,6 +77,7 @@ function calcularAnalisisLeads() {
       if (tk.length < 2) continue;
       var k = claveCompleta(tk);
       (compras[k] = compras[k] || []).push({ dia: dia, neto: neto, local: claveLead(nombreLocal(v.col.local[i])) });
+      if (!nombreCliente[k]) nombreCliente[k] = String(v.col.cliente[i]).trim();
       // Clave corta (primer y último nombre) para los que en un sistema figuran con todos los nombres y en otro no.
       var par = claveCompleta([tk[0], tk[tk.length - 1]]);
       (porPar[par] = porPar[par] || {})[k] = true;
@@ -88,11 +89,12 @@ function calcularAnalisisLeads() {
     var t = tablaCon(SpreadsheetApp.openById(tl).getSheets(), { fecha: /^fecha y hora/i, origen: /^source$/i,
       calificacion: /^rating$/i, nombre: /^name$/i, apellido: /^surname$/i, email: /^email$/i,
       tel: /^phone$/i, cel: /^mobile_phone$/i, local: /^store$/i });
-    var leads = [], vistos = {};
+    var leads = [], vistos = {}, crudosPorMes = {};
     var cruce = { completo: 0, corto: 0, ambiguo: 0, sin: 0 };
     for (i = 0; i < t.n; i++) {
       var d = diaDe(t.col.fecha[i]);
       if (!d) continue;
+      crudosPorMes[d.slice(0, 7)] = (crudosPorMes[d.slice(0, 7)] || 0) + 1;
       var tkL = tokensNombre(t.col.nombre[i]).concat(tokensNombre(t.col.apellido[i]));
       var persona = telefono10(t.col.cel[i]) || telefono10(t.col.tel[i]) ||
         String(t.col.email[i] || '').trim().toLowerCase().replace(/^-$/, '') || claveCompleta(tkL);
@@ -112,6 +114,7 @@ function calcularAnalisisLeads() {
         }
       }
       leads.push({ dia: d, persona: persona, cliente: cliente, tipoCruce: tipo,
+        nombreLead: (String(t.col.nombre[i] || '') + ' ' + String(t.col.apellido[i] || '')).trim(),
         local: claveLead(t.col.local[i]), origen: reparar(String(t.col.origen[i] || '-')).trim() || '-',
         calif: reparar(String(t.col.calificacion[i] || '-')).trim() || '-' });
     }
@@ -136,7 +139,8 @@ function calcularAnalisisLeads() {
       ls.forEach(function (l) { l.yaEraCliente = compras[k].some(function (c) { return c.dia < l.dia; }); });
     });
 
-    return { leads: leads, minVenta: minVenta, maxVenta: maxVenta, cruce: contarCruce(leads),
+    return { leads: leads, minVenta: minVenta, maxVenta: maxVenta, cruce: contarCruce(leads), compras: compras,
+      nombreCliente: nombreCliente, crudosPorMes: crudosPorMes,
       archivos: [ventasArchivo.getName(), DriveApp.getFileById(LEADS_BASE_ID).getName()] };
   } finally {
     temporales.forEach(function (id) { try { Drive.Files.remove(id); } catch (e) { /* ya no está */ } });
@@ -208,6 +212,7 @@ function escribirAnalisis(libro, r) {
     var n = conv.filter(function (l) { return l.dias >= tr[0] && l.dias <= tr[1]; }).length;
     return [tr[2], n, conv.length ? Math.round(n / conv.length * 1000) / 10 : ''];
   })));
+  escribirValidacion(libro, r, leads);
   escribir(libro, 'info', [['dato', 'valor'],
     ['archivos', r.archivos.join(' + ')],
     ['calculado', fecha(new Date())],
@@ -220,7 +225,51 @@ function escribirAnalisis(libro, r) {
     ['sin compras con ese nombre', r.cruce.sin || 0],
     ['regla', 'Compró = compra con venta neta > 0 dentro de los ' + DIAS_CONVERSION + ' días del lead. "No concretó" solo para leads hasta el ' + corte + '; los posteriores quedan "en curso".'],
     ['regla', 'Ya era cliente = compró antes del lead (desde ' + r.minVenta + '). Ya era lead = mismo teléfono / mail con un lead anterior desde 2025.'],
-    ['privacidad', 'Esta planilla solo tiene cantidades: ningún nombre, mail ni teléfono.']]);
+    ['privacidad', 'Todas las pestañas tienen solo cantidades, salvo "validacion_muestra", que tiene nombres para revisar el cruce a mano: borrarla después de validar.']]);
   var sobra = libro.getSheetByName('Hoja 1') || libro.getSheetByName('Sheet1');
   if (sobra && libro.getSheets().length > 1) libro.deleteSheet(sobra);
+}
+
+/** Pestañas para validar el cruce: totales con y sin limpieza, "Compró" sin compra y una muestra para revisar a mano. */
+function escribirValidacion(libro, r, leads) {
+  // 1. Leads por mes: filas del archivo vs. sin repetidos (misma persona el mismo día).
+  var limpios = {};
+  r.leads.forEach(function (l) { limpios[l.dia.slice(0, 7)] = (limpios[l.dia.slice(0, 7)] || 0) + 1; });
+  var filas = [['mes', 'filas_en_archivo', 'sin_repetidos_mismo_dia', 'diferencia']];
+  Object.keys(r.crudosPorMes).sort().forEach(function (m) {
+    filas.push([m, r.crudosPorMes[m], limpios[m] || 0, r.crudosPorMes[m] - (limpios[m] || 0)]);
+  });
+  escribir(libro, 'validacion_totales', filas);
+
+  // 2. Leads calificados "Compró" que no tienen compra atribuida: por qué.
+  var motivos = { 'nombre no encontrado en ventas': 0, 'nombre ambiguo (varios clientes)': 0, 'compró antes del lead': 0,
+    'compró después de los 60 días': 0, 'cliente encontrado sin compras con venta > 0 cerca': 0 };
+  leads.filter(function (l) { return /compr/i.test(l.calif) && l.dias == null; }).forEach(function (l) {
+    if (l.tipoCruce === 'ambiguo') { motivos['nombre ambiguo (varios clientes)']++; return; }
+    if (!l.cliente) { motivos['nombre no encontrado en ventas']++; return; }
+    var cs = r.compras[l.cliente] || [];
+    if (cs.some(function (c) { return c.dia < l.dia; }) && !cs.some(function (c) { return c.dia >= l.dia; })) motivos['compró antes del lead']++;
+    else if (cs.some(function (c) { return c.dia >= l.dia && diasEntre(l.dia, c.dia) > DIAS_CONVERSION; })) motivos['compró después de los 60 días']++;
+    else motivos['cliente encontrado sin compras con venta > 0 cerca']++;
+  });
+  escribir(libro, 'validacion_compro', [['motivo', 'leads']].concat(Object.keys(motivos).map(function (k) { return [k, motivos[k]]; })));
+
+  // 3. Muestra para revisar a mano (CON NOMBRES: pestaña privada, borrar después de validar).
+  var elegir = function (lista, n) {
+    var copia = lista.slice(), out = [];
+    while (copia.length && out.length < n) out.push(copia.splice(Math.floor(Math.random() * copia.length), 1)[0]);
+    return out;
+  };
+  var muestra = [['grupo', 'fecha_lead', 'local_lead', 'origen', 'calificacion', 'nombre_en_lead', 'nombre_en_ventas', 'tipo_cruce',
+    'dias_hasta_compra', 'facturacion_atribuida', 'local_compra']];
+  var agregar = function (grupo, ls) {
+    ls.forEach(function (l) {
+      muestra.push([grupo, l.dia, l.local, l.origen, l.calif, l.nombreLead, l.cliente ? r.nombreCliente[l.cliente] || '' : '',
+        l.tipoCruce, l.dias == null ? '' : l.dias, l.facturacion ? Math.round(l.facturacion) : '', l.localCompra || '']);
+    });
+  };
+  agregar('A. cruce por nombre completo y compró', elegir(leads.filter(function (l) { return l.tipoCruce === 'completo' && l.dias != null; }), 15));
+  agregar('B. cruce por primer nombre + apellido y compró', elegir(leads.filter(function (l) { return l.tipoCruce === 'corto' && l.dias != null; }), 15));
+  agregar('C. calificado "Compró" sin compra encontrada', elegir(leads.filter(function (l) { return /compr/i.test(l.calif) && l.dias == null; }), 15));
+  escribir(libro, 'validacion_muestra', muestra);
 }
