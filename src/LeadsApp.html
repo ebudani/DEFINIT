@@ -238,7 +238,7 @@
 
   function renderEmbudo(A, porCalif) {
     var pre = porCalif.Presupuesto || vacio();
-    var pasos = [['Entraron (leads)', A.leads], ['Con presupuesto', pre.leads], ['Compraron', A.compraron],
+    var pasos = [['Leads', A.leads], ['Con presupuesto', pre.leads], ['Compraron', A.compraron],
       ['No compraron (ya pasaron 90 días)', A.no_concretaron], ['Todavía pueden comprar', A.en_curso]];
     var colores = [css('--series-1'), '#2a78d6', '#1f8a3b', '#d03b3b', '#b7b8c0'];
     var op = opciones();
