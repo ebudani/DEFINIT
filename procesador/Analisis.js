@@ -89,18 +89,30 @@ function calcularAnalisisLeads() {
     var t = tablaCon(SpreadsheetApp.openById(tl).getSheets(), { fecha: /^fecha y hora/i, origen: /^source$/i,
       calificacion: /^rating$/i, nombre: /^name$/i, apellido: /^surname$/i, email: /^email$/i,
       tel: /^phone$/i, cel: /^mobile_phone$/i, local: /^store$/i });
-    var leads = [], vistos = {}, crudosPorMes = {};
+    var leads = [], crudosPorMes = {};
     var cruce = { completo: 0, corto: 0, ambiguo: 0, sin: 0 };
+    // Primero todas las filas con su fecha y hora, ordenadas; después se sacan los repetidos.
+    var filasL = [];
     for (i = 0; i < t.n; i++) {
-      var d = diaDe(t.col.fecha[i]);
-      if (!d) continue;
+      var ms = fechaHoraMs(t.col.fecha[i]);
+      if (ms == null) continue;
+      var d = Utilities.formatDate(new Date(ms), 'UTC', 'yyyy-MM-dd');
       crudosPorMes[d.slice(0, 7)] = (crudosPorMes[d.slice(0, 7)] || 0) + 1;
       var tkL = tokensNombre(t.col.nombre[i]).concat(tokensNombre(t.col.apellido[i]));
       var persona = telefono10(t.col.cel[i]) || telefono10(t.col.tel[i]) ||
         String(t.col.email[i] || '').trim().toLowerCase().replace(/^-$/, '') || claveCompleta(tkL);
       if (!persona) continue;
-      if (vistos[persona + '|' + d]) continue; // mismo lead cargado dos veces el mismo día
-      vistos[persona + '|' + d] = true;
+      filasL.push({ i: i, ms: ms, dia: d, persona: persona, tkL: tkL });
+    }
+    filasL.sort(function (a, b) { return a.ms - b.ms; });
+    // La misma persona dentro de las 24 h de su lead anterior es el mismo lead; después de 24 h es un lead nuevo.
+    var ultimoMs = {};
+    filasL.forEach(function (f) {
+      var previo = ultimoMs[f.persona];
+      if (previo != null && f.ms - previo < 24 * 3600 * 1000) return;
+      ultimoMs[f.persona] = f.ms;
+      i = f.i;
+      var tkL = f.tkL;
       // Cliente de ventas que corresponde a este lead.
       var cliente = null, tipo = 'sin';
       if (tkL.length >= 2) {
@@ -113,12 +125,11 @@ function calcularAnalisisLeads() {
           else if (cands.length > 1) tipo = 'ambiguo';
         }
       }
-      leads.push({ dia: d, persona: persona, cliente: cliente, tipoCruce: tipo,
+      leads.push({ dia: f.dia, persona: f.persona, cliente: cliente, tipoCruce: tipo,
         nombreLead: (String(t.col.nombre[i] || '') + ' ' + String(t.col.apellido[i] || '')).trim(),
         local: claveLead(t.col.local[i]), origen: reparar(String(t.col.origen[i] || '-')).trim() || '-',
         calif: reparar(String(t.col.calificacion[i] || '-')).trim() || '-' });
-    }
-    leads.sort(function (a, b) { return a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : 0; });
+    });
 
     // Leads anteriores de la misma persona.
     var ultimoLead = {};
@@ -145,6 +156,15 @@ function calcularAnalisisLeads() {
   } finally {
     temporales.forEach(function (id) { try { Drive.Files.remove(id); } catch (e) { /* ya no está */ } });
   }
+}
+
+/** "Fecha y hora (AR)" -> milisegundos, tomando la hora de Argentina como si fuera UTC (solo se comparan entre sí). */
+function fechaHoraMs(v) {
+  if (v instanceof Date) return Date.UTC(v.getFullYear(), v.getMonth(), v.getDate(), v.getHours(), v.getMinutes(), v.getSeconds());
+  var m = String(v || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
+  m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : null;
 }
 
 function diasEntre(a, b) {
@@ -218,13 +238,14 @@ function escribirAnalisis(libro, r) {
     ['calculado', fecha(new Date())],
     ['ventas disponibles', r.minVenta + ' a ' + r.maxVenta],
     ['leads analizados (desde que hay ventas)', leads.length],
-    ['leads en la base (todos, sin duplicados del mismo día)', r.leads.length],
+    ['leads en la base (todos, sin repetidos dentro de las 24 h)', r.leads.length],
     ['cruce por nombre completo', r.cruce.completo || 0],
     ['cruce por primer nombre + apellido', r.cruce.corto || 0],
     ['nombre ambiguo (no se cruzó)', r.cruce.ambiguo || 0],
     ['sin compras con ese nombre', r.cruce.sin || 0],
     ['regla', 'Compró = compra con venta neta > 0 dentro de los ' + DIAS_CONVERSION + ' días del lead. "No concretó" solo para leads hasta el ' + corte + '; los posteriores quedan "en curso".'],
-    ['regla', 'Ya era cliente = compró antes del lead (desde ' + r.minVenta + '). Ya era lead = mismo teléfono / mail con un lead anterior desde 2025.'],
+    ['regla', 'Mismo lead = la misma persona (celular, teléfono, mail o nombre) dentro de las 24 h de su lead anterior. Después de 24 h cuenta como lead nuevo.'],
+    ['regla', 'Ya era cliente = compró antes del lead: es un cliente que vuelve a consultar (desde ' + r.minVenta + '). Ya era lead = mismo teléfono / mail con un lead anterior desde 2025.'],
     ['privacidad', 'Todas las pestañas tienen solo cantidades, salvo "validacion_muestra", que tiene nombres para revisar el cruce a mano: borrarla después de validar.']]);
   var sobra = libro.getSheetByName('Hoja 1') || libro.getSheetByName('Sheet1');
   if (sobra && libro.getSheets().length > 1) libro.deleteSheet(sobra);
@@ -235,7 +256,7 @@ function escribirValidacion(libro, r, leads) {
   // 1. Leads por mes: filas del archivo vs. sin repetidos (misma persona el mismo día).
   var limpios = {};
   r.leads.forEach(function (l) { limpios[l.dia.slice(0, 7)] = (limpios[l.dia.slice(0, 7)] || 0) + 1; });
-  var filas = [['mes', 'filas_en_archivo', 'sin_repetidos_mismo_dia', 'diferencia']];
+  var filas = [['mes', 'filas_en_archivo', 'sin_repetidos_24h', 'diferencia']];
   Object.keys(r.crudosPorMes).sort().forEach(function (m) {
     filas.push([m, r.crudosPorMes[m], limpios[m] || 0, r.crudosPorMes[m] - (limpios[m] || 0)]);
   });
