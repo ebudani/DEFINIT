@@ -45,12 +45,16 @@
     $('vista-leads').hidden = false;
     $('l-fuente').hidden = !est.datos;
     document.querySelector('.campo-fecha').style.display = 'none'; // Leads: siempre el año en curso
+    var propio = document.querySelector('#f-grupo [data-v="propio"]');
+    if (propio.getAttribute('aria-checked') !== 'true') propio.click(); // Leads: solo locales propios
+    $('f-grupo').closest('.campo').style.display = 'none';
     if (!est.datos && !est.cargando) cargar(); else if (est.datos) render();
   });
   ['tab-ventas', 'tab-comercial', 'tab-clientes'].forEach(function (id) {
     $(id).addEventListener('click', function () {
       $('vista-leads').hidden = true; $('l-fuente').hidden = true;
       document.querySelector('.campo-fecha').style.display = '';
+      $('f-grupo').closest('.campo').style.display = '';
       $('tab-leads').setAttribute('aria-selected', 'false');
     });
   });
@@ -117,12 +121,12 @@
   }
 
   // ---------- Datos ----------
+  // Leads analiza solo locales propios: las franquicias no tienen ventas en el archivo, no se pueden medir.
   function enSeleccion(clave) {
     var f = est.filtros;
-    if (!f) return clave !== '-';
-    if (f.local) return clave === f.local;
-    if (f.grupo === 'todos') return true;
-    return f.clavesGrupo.indexOf(clave) >= 0;
+    if (!f || !f.clavesPropios) return false;
+    if (!f.clavesPropios[clave]) return false;
+    return f.local ? clave === f.local : true;
   }
   function nombreLocal(clave) {
     var f = est.filtros;
@@ -163,7 +167,11 @@
     }
     $('l-cuerpo').hidden = false;
     if (mv.length < meses.length) avisos.push('Las compras se miden desde ' + mesLargo(d.primeraVenta) + ', cuando empiezan las ventas del archivo.');
-    if (f.grupo !== 'propio') avisos.push('Las franquicias no están en el archivo de ventas: sus compras no se pueden medir.');
+    // Cuántos leads quedan afuera (franquicias y sin local) en los meses del análisis.
+    var fuera = 0, total = 0;
+    d.A.forEach(function (o) { if (meses.indexOf(o.mes) >= 0) { total += o.leads; if (!(f.clavesPropios || {})[o.local]) fuera += o.leads; } });
+    avisos.push('Solo locales propios: las franquicias y los leads sin local (' + nf0.format(fuera) + ', el ' + pct0(total ? fuera / total : null) +
+      ' de los leads) no tienen ventas en el archivo, así que no se puede medir si compraron.');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
     var A = resumir('A', mv, function (o) { return o.clave; });          // por tipo
