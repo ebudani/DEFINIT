@@ -82,7 +82,7 @@
         }
         est.datos = preparar(d.vista);
         var x = est.datos;
-        $('l-fuente').textContent = 'Fuente: base de leads + ventas por ítem · leads de ' + mesLargo(x.meses[0]) + ' a ' + mesLargo(x.meses[x.meses.length - 1]) +
+        $('l-fuente').textContent = 'Fuente: base de leads + cartera de clientes (cruce por teléfono, mail y nombre) · leads de ' + mesLargo(x.meses[0]) + ' a ' + mesLargo(x.meses[x.meses.length - 1]) +
           ' · ventas ' + x.info.ventas.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1') + ' · sin datos personales: solo cantidades';
         $('l-fuente').hidden = $('vista-leads').hidden;
         estado.hidden = true;
@@ -156,7 +156,8 @@
     // Leads no usa el filtro de Fecha: siempre el año en curso, de enero al último mes con ventas
     // (sin ventas no se puede saber quién compró). El mes que sigue, si ya tiene leads, figura en el gráfico mensual.
     var anio = d.ultimaVenta.slice(0, 4);
-    var meses = d.meses.filter(function (m) { return m.slice(0, 4) === anio && m <= d.ultimaVenta; });
+    // Hasta el mes anterior al último con ventas: el mes en curso todavía no tiene leads completos ni tiempo para comprar.
+    var meses = d.meses.filter(function (m) { return m.slice(0, 4) === anio && m < d.ultimaVenta; });
     var mv = meses.filter(function (m) { return m >= d.primeraVenta; });
     avisos.push('Año ' + anio + ': de ' + MESES[0] + ' a ' + (meses.length ? MESES[+meses[meses.length - 1].slice(5, 7) - 1] : '–') +
       ' (hasta el último mes con ventas para medir las compras). Esta pestaña no usa el filtro de Fecha.');
@@ -170,8 +171,7 @@
     // Cuántos leads quedan afuera (franquicias y sin local) en los meses del análisis.
     var fuera = 0, total = 0;
     d.A.forEach(function (o) { if (meses.indexOf(o.mes) >= 0) { total += o.leads; if (!(f.clavesPropios || {})[o.local]) fuera += o.leads; } });
-    avisos.push('Solo locales propios: las franquicias y los leads sin local (' + nf0.format(fuera) + ', el ' + pct0(total ? fuera / total : null) +
-      ' de los leads) no tienen ventas en el archivo, así que no se puede medir si compraron.');
+    avisos.push('Solo locales propios: se dejan afuera las franquicias y los leads sin local (' + nf0.format(fuera) + ', el ' + pct0(total ? fuera / total : null) + ' de los leads).');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
     var A = resumir('A', mv, function (o) { return o.clave; });          // por tipo
@@ -208,8 +208,8 @@
         det: dif == null ? 'Sin datos del año anterior' : '<span class="' + (dif >= 0 ? 'pos-var' : 'neg') + '">' + (dif >= 0 ? '+' : '−') + pct(Math.abs(dif)) + '</span> vs mismo período ' + (meses[0].slice(0, 4) - 1) },
       { label: 'Conversión', valor: pct(conv(limpio)),
         det: limpio.leads ? nf0.format(limpio.compraron) + ' de ' + nf0.format(limpio.leads) + ' leads de locales propios, ' + mesCorto(completos[0]).toLowerCase() + ' a ' +
-          mesCorto(completos[completos.length - 1]).toLowerCase() + ' (90 días cumplidos). El real es mayor: el cruce no encuentra a todos.' : 'Sin leads de locales propios con 90 días cumplidos' },
-      { label: 'Facturación de los que compraron', valor: millones(A.facturacion), det: 'Ticket por comprador ' + miles(A.compraron ? A.facturacion / A.compraron : null) },
+          mesCorto(completos[completos.length - 1]).toLowerCase() + ' (con los 90 días cumplidos).' : 'Sin leads de locales propios con 90 días cumplidos' },
+      { label: 'Valor de lo que compraron', valor: millones(A.facturacion), det: 'Valor de los contratos en la cartera (a validar) · ' + miles(A.compraron ? A.facturacion / A.compraron : null) + ' por comprador' },
       { label: 'Compran en los primeros 3 días', valor: pct0(en3(A)), det: 'Promedio ' + nf1.format(A.compraron ? A.dias_suma / A.compraron : 0) + ' días hasta la compra' },
       { label: 'Compradores nuevos', valor: pct0(A.compraron ? nuevos.compraron / A.compraron : null), det: nf0.format(nuevos.compraron) + ' sin compras ni leads previos' }
     ];
@@ -323,7 +323,7 @@
       return fila(mayus(MESES[+m.slice(5, 7) - 1]), x, ant, nv);
     });
     $('l-t-mes').innerHTML = '<thead><tr><th class="izq">Mes</th><th>Leads</th><th>vs año anterior</th><th>Compraron</th><th>% compró</th>' +
-      '<th>Facturación</th><th>Compra en 3 días</th><th>Compradores nuevos</th></tr></thead><tbody>' + filas.join('') + '</tbody>' +
+      '<th>Valor</th><th>Compra en 3 días</th><th>Compradores nuevos</th></tr></thead><tbody>' + filas.join('') + '</tbody>' +
       '<tfoot>' + fila('Total del año', tot, totAnt, totNuevos, true) + '</tfoot>';
   }
 
@@ -348,7 +348,7 @@
     };
     var tot = vacio(); claves.forEach(function (k) { sumar(tot, grupos[k]); });
     $(id).innerHTML = '<thead><tr><th class="izq">' + titulo + '</th><th>Leads</th><th>Compraron</th><th>% compró</th>' +
-      '<th>Facturación</th><th>Ticket</th><th>Compra en 3 días</th><th>No concretaron</th><th>En curso</th></tr></thead><tbody>' +
+      '<th>Valor</th><th>Ticket</th><th>Compra en 3 días</th><th>No concretaron</th><th>En curso</th></tr></thead><tbody>' +
       claves.map(function (k) { return fila(nombre(k), grupos[k]); }).join('') + '</tbody><tfoot>' +
       fila(maximo ? 'Total de estos ' + claves.length : 'Total', tot, true) + '</tfoot>';
   }
