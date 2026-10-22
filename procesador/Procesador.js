@@ -83,6 +83,7 @@ function procesar() {
   }
   // Análisis privado de leads (Analisis.js): se programa una sola vez y corre aparte.
   try { programarAnalisisLeads(); } catch (e) { Logger.log('No se pudo programar el análisis de leads: ' + e); }
+  try { programarCartera(); } catch (e) { Logger.log('No se pudo programar el cruce con la cartera: ' + e); }
 }
 
 // ---------- Drive ----------
