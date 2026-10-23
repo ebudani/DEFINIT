@@ -278,18 +278,20 @@
       'c-tabla': ['1 pago', '3 cuotas', '6 cuotas', '12 cuotas'],
       'cl-tabla': ['% nuevos', 'Ítems/cliente', 'Sesiones/cliente', '% con cortesía'],
       'l-t-calif': ['Compraron', 'Compra en 3 días'],
-      'l-t-mes': ['Compraron', 'Compra en 3 días', 'Compradores nuevos'],
+      'l-t-mes': ['vs año anterior', 'Compraron', 'Compra en 3 días', 'Compradores nuevos'],
       'l-t-origen': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
       'l-t-local': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
-      'l-t-cort-mes': ['% de los que compraron', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía'],
-      'l-t-cort-local': ['% de los que compraron', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía'],
+      'l-t-cort-mes': ['% de los que compraron', 'Pagaron a 60 días', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía'],
+      'l-t-cort-local': ['% de los que compraron', 'Pagaron a 60 días', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía'],
       'tabla-mapa': 4, // Local y los 3 meses más recientes
       'tabla-conc': 4
     };
     // En pantallas medianas (notebook chica, tablet) se ocultan solo estas ("col-md").
     var OCULTAR_MEDIO = {
       'tabla-ranking': ['Participación', '% Súper'],
-      'l-t-calif': ['Compra en 3 días']
+      'l-t-calif': ['Compra en 3 días'],
+      'l-t-cort-mes': ['% de los que compraron', 'Por cada uno que pagó'],
+      'l-t-cort-local': ['% de los que compraron', 'Por cada uno que pagó']
     };
     // En tablet ("col-tb"), además de las de pantallas medianas.
     var OCULTAR_TABLET = {
