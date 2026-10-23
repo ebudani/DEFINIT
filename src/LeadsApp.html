@@ -179,7 +179,7 @@
     d.A.forEach(function (o) { if (meses.indexOf(o.mes) >= 0) { total += o.leads; if (!enSeleccion(o.local)) fuera += o.leads; } });
     var grupoTxt = { propio: 'Solo locales propios', franquicia: 'Solo franquicias', todos: 'Todos los locales, incluidos los leads sin local' }[f.grupo] || 'Solo locales propios';
     avisos.push(grupoTxt + (fuera && !f.local ? ' (quedan afuera ' + nf0.format(fuera) + ' leads, el ' + pct0(total ? fuera / total : null) + ')' : '') + '.');
-    if (f.grupo !== 'propio') avisos.push('Mendoza y TOM todavía no figuran en la cartera de clientes: sus compras no se pueden medir.');
+    if (f.grupo !== 'propio') avisos.push('Mendoza y TOM todavía no figuran en la cartera de clientes: sus compras no se pueden medir. La facturación de las franquicias no está en el archivo de ventas: figura en $0.');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
     var A = resumir('A', mv, function (o) { return o.clave; });          // por tipo
@@ -217,7 +217,7 @@
       { label: 'Conversión', valor: pct(conv(limpio)),
         det: limpio.leads ? nf0.format(limpio.compraron) + ' de ' + nf0.format(limpio.leads) + ' leads (' + ({ propio: 'locales propios', franquicia: 'franquicias', todos: 'todos los locales' }[(est.filtros || {}).grupo] || 'locales propios') + '), ' + mesCorto(completos[0]).toLowerCase() + ' a ' +
           mesCorto(completos[completos.length - 1]).toLowerCase() + ' (con los 90 días cumplidos).' : 'Sin leads con 90 días cumplidos' },
-      { label: 'Valor de lo que compraron', valor: millones(A.facturacion), det: 'Valor de los contratos en la cartera (a validar) · ' + miles(A.compraron ? A.facturacion / A.compraron : null) + ' por comprador' },
+      { label: 'Facturación de los que compraron', valor: millones(A.facturacion), det: 'Venta neta de sus compras dentro de los 90 días · ' + miles(A.compraron ? A.facturacion / A.compraron : null) + ' por comprador' },
       { label: 'Compran en los primeros 3 días', valor: pct0(en3(A)), det: 'Promedio ' + nf1.format(A.compraron ? A.dias_suma / A.compraron : 0) + ' días hasta la compra' },
       { label: 'Compradores nuevos', valor: pct0(A.compraron ? nuevos.compraron / A.compraron : null), det: nf0.format(nuevos.compraron) + ' sin compras ni leads previos' }
     ];
@@ -334,7 +334,7 @@
       return fila(mayus(MESES[+m.slice(5, 7) - 1]), x, ant, nv);
     });
     $('l-t-mes').innerHTML = '<thead><tr><th class="izq">Mes</th><th>Leads</th><th>vs año anterior</th><th>Compraron</th><th>% compró</th>' +
-      '<th>Valor</th><th>Compra en 3 días</th><th>Compradores nuevos</th></tr></thead><tbody>' + filas.join('') + '</tbody>' +
+      '<th>Venta neta</th><th>Compra en 3 días</th><th>Compradores nuevos</th></tr></thead><tbody>' + filas.join('') + '</tbody>' +
       '<tfoot>' + fila('Total del año', tot, totAnt, totNuevos, true) + '</tfoot>';
   }
 
@@ -359,7 +359,7 @@
     };
     var tot = vacio(); claves.forEach(function (k) { sumar(tot, grupos[k]); });
     $(id).innerHTML = '<thead><tr><th class="izq">' + titulo + '</th><th>Leads</th><th>Compraron</th><th>% compró</th>' +
-      '<th>Valor</th><th>Ticket</th><th>Compra en 3 días</th><th>No concretaron</th><th>En curso</th></tr></thead><tbody>' +
+      '<th>Venta neta</th><th>Ticket</th><th>Compra en 3 días</th><th>No concretaron</th><th>En curso</th></tr></thead><tbody>' +
       claves.map(function (k) { return fila(nombre(k), grupos[k]); }).join('') + '</tbody><tfoot>' +
       fila(maximo ? 'Total de estos ' + claves.length : 'Total', tot, true) + '</tfoot>';
   }
