@@ -90,6 +90,7 @@ function agregarFacturacionLeads() {
  * el nombre se repite (homónimos). Escribe en la planilla privada la pestaña "comparacion_cruce", solo cantidades.
  */
 function compararCruceVentas() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'compararCruceVentas') ScriptApp.deleteTrigger(t); });
   var inicio = Date.now(), libro = libroAnalisis(), temporales = [];
   try {
     var archivo = masReciente(listarCarpeta(), /^venta_items_sesiones.*\.xlsx$/i);
@@ -207,4 +208,13 @@ function compararCruceVentas() {
   } finally {
     temporales.forEach(function (id) { try { Drive.Files.remove(id); } catch (e) { /* ya no está */ } });
   }
+}
+
+/** Lo llama la ejecución de cada hora: corre la comparación una sola vez por versión (aparte, tarda unos minutos). */
+var VERSION_COMPARACION = 'v1';
+function programarComparacion() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('comparacionVersion') === VERSION_COMPARACION) return;
+  ScriptApp.newTrigger('compararCruceVentas').timeBased().after(60 * 1000).create();
+  props.setProperty('comparacionVersion', VERSION_COMPARACION);
 }
