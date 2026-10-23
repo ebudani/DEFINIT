@@ -122,7 +122,7 @@ function leerLeadsBase(temporales) {
     var tel = telefono10(t.col.cel[i]) || telefono10(t.col.tel[i]), mail = mailLimpio(t.col.email[i]);
     var persona = tel || mail || claveCompleta(tkL);
     if (!persona) continue;
-    filas.push({ ms: ms, tel: tel, mail: mail, nom: tkL.length >= 2 ? claveCompleta(tkL) : '', persona: persona,
+    filas.push({ ms: ms, tel: tel, mail: mail, nom: tkL.length >= 2 ? claveCompleta(tkL) : '', parcial: tkL.length >= 2 ? tkL[0] + '|' + tkL[tkL.length - 1] : '', persona: persona,
       local: claveLead(t.col.local[i]), origen: origenLimpio(reparar(String(t.col.origen[i] || '-')).trim() || '-'),
       calif: reparar(String(t.col.calificacion[i] || '-')).trim() || '-' });
   }
