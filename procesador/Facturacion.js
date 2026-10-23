@@ -5,7 +5,8 @@
  * Venta_Items_Sesiones tiene las ventas con el nombre del cliente y, en la pestaña "base Clientes", el mail
  * y el teléfono de cada cliente. Cada lead se busca ahí por teléfono / mail (y si no, por nombre) para llegar
  * a su nombre de cliente, y con ese nombre a sus compras. Solo se escriben cantidades y montos.
- * Venta_Items_Sesiones tiene solo locales propios: en franquicias la facturación queda en 0.
+ * Venta_Items_Sesiones tiene solo locales propios: en los locales que no figuran ahí (franquicias) se deja
+ * el valor del contrato de la cartera, que es lo que ya trae la vista.
  */
 function agregarFacturacionLeads() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'agregarFacturacionLeads') ScriptApp.deleteTrigger(t); });
@@ -18,9 +19,10 @@ function agregarFacturacionLeads() {
     var archivo = masReciente(listarCarpeta(), /^venta_items_sesiones.*\.xlsx$/i);
     var tv = convertir(archivo); temporales.push(tv);
     var hojas = SpreadsheetApp.openById(tv).getSheets();
-    var v = tablaCon(hojas, { fecha: /^fecha de pago$/i, cliente: /^cliente$/i, cortesia: /cortes[íi]a/i, neto: /^v\.?\s*neto$/i });
-    var compras = {};
+    var v = tablaCon(hojas, { fecha: /^fecha de pago$/i, local: /^establecimiento$/i, cliente: /^cliente$/i, cortesia: /cortes[íi]a/i, neto: /^v\.?\s*neto$/i });
+    var compras = {}, localesConVentas = {};
     for (var i = 0; i < v.n; i++) {
+      localesConVentas[claveLead(nombreLocal(v.col.local[i]))] = true;
       var dia = diaDe(v.col.fecha[i]), neto = num(v.col.neto[i]);
       var cort = v.col.cortesia[i] === true || /^(true|verdadero|s[ií]|1)$/i.test(String(v.col.cortesia[i]).trim());
       if (!dia || cort || !neto) continue;
@@ -67,7 +69,8 @@ function agregarFacturacionLeads() {
     var col = vista[0].indexOf('facturacion');
     vista.forEach(function (f, r) {
       if (r === 0 || f[0] === 'info') return;
-      f[col] = Math.round(fact[f.slice(0, 4).join('|')] || 0);
+      // Locales con ventas en el archivo (propios): venta neta. El resto (franquicias): queda el valor del contrato.
+      if (localesConVentas[f[2]]) f[col] = Math.round(fact[f.slice(0, 4).join('|')] || 0);
     });
     escribir(libro, 'vista', vista.map(function (f) { return f.slice(); }));
     libro.setActiveSheet(libro.getSheetByName('vista')); libro.moveActiveSheet(1);
