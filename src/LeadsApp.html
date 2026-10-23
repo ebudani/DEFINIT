@@ -23,7 +23,7 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-  var CAMPOS = ['leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso'];
+  var CAMPOS = ['leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso', 'pagaron'];
   var TRAMOS = [['d0', 'Mismo día'], ['d1_3', '1 a 3 días'], ['d4_7', '4 a 7 días'], ['d8_15', '8 a 15 días'],
     ['d16_30', '16 a 30 días'], ['d31_60', '31 a 60 días'], ['d61_90', '61 a 90 días']];
   var TIPOS = [['nuevo', 'Nuevos'], ['ya_lead', 'Ya habían sido leads'], ['ya_cliente', 'Ya eran clientes']];
@@ -139,6 +139,8 @@
     if (clave === '-') return 'Sin local';
     return (f && f.nombres && f.nombres[clave]) || mayus(clave);
   }
+  // Venta neta por comprador que pagó (sin contar a los que solo se llevaron la cortesía).
+  function ticket(x) { var n = x.pagaron || x.compraron; return n ? x.facturacion / n : null; }
   function vacio() { var x = {}; CAMPOS.forEach(function (c) { x[c] = 0; }); return x; }
   function sumar(x, o) { CAMPOS.forEach(function (c) { x[c] += o[c] || 0; }); }
   /** Suma un bloque (A, B o C) en los meses dados y para el Grupo / Local elegidos; también agrupado. */
@@ -217,7 +219,7 @@
       { label: 'Conversión', valor: pct(conv(limpio)),
         det: limpio.leads ? nf0.format(limpio.compraron) + ' de ' + nf0.format(limpio.leads) + ' leads (' + ({ propio: 'locales propios', franquicia: 'franquicias', todos: 'todos los locales' }[(est.filtros || {}).grupo] || 'locales propios') + '), ' + mesCorto(completos[0]).toLowerCase() + ' a ' +
           mesCorto(completos[completos.length - 1]).toLowerCase() + ' (con los 90 días cumplidos).' : 'Sin leads con 90 días cumplidos' },
-      { label: 'Facturación de los que compraron', valor: millones(A.facturacion), det: 'Venta neta de sus compras dentro de los 90 días · ' + miles(A.compraron ? A.facturacion / A.compraron : null) + ' por comprador' },
+      { label: 'Facturación de los que compraron', valor: millones(A.facturacion), det: 'Venta neta de sus compras dentro de los 90 días · ' + miles(ticket(A)) + ' por comprador que pagó (sin la cortesía)' },
       { label: 'Compran en los primeros 3 días', valor: pct0(en3(A)), det: 'Promedio ' + nf1.format(A.compraron ? A.dias_suma / A.compraron : 0) + ' días hasta la compra' },
       { label: 'Compradores nuevos', valor: pct0(A.compraron ? nuevos.compraron / A.compraron : null), det: nf0.format(nuevos.compraron) + ' sin compras ni leads previos' }
     ];
@@ -354,7 +356,7 @@
       var c = conv(x), col = c == null ? null : colorConv(c);
       return '<tr><td class="izq">' + esc(n) + '</td><td>' + nf0.format(x.leads) + '</td><td>' + nf0.format(x.compraron) + '</td>' +
         '<td class="celda-seg"' + (col && !total ? ' style="background:' + col.fondo + ';color:' + col.texto + '"' : '') + '>' + pct(c) + '</td>' +
-        '<td>' + millones(x.facturacion) + '</td><td>' + miles(x.compraron ? x.facturacion / x.compraron : null) + '</td>' +
+        '<td>' + millones(x.facturacion) + '</td><td>' + miles(ticket(x)) + '</td>' +
         '<td>' + pct0(en3(x)) + '</td><td>' + nf0.format(x.no_concretaron) + '</td><td>' + nf0.format(x.en_curso) + '</td></tr>';
     };
     var tot = vacio(); claves.forEach(function (k) { sumar(tot, grupos[k]); });
