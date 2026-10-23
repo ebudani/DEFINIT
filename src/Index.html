@@ -239,10 +239,10 @@
           <div class="tabla-scroll"><table class="ranking-com" id="l-t-mes"></table></div>
         </section>
         <section class="panel">
-          <div class="panel-head"><h2 class="por-local" data-titulo="Cortesía de 3 axilas: ¿después pagan?">Cortesía de 3 axilas: ¿después pagan?</h2><p class="nota">Leads que se llevaron la cortesía (casi siempre axilas, 3 sesiones) dentro de los 90 días del lead, y cuántos pagaron después un tratamiento: a los 60 y a los 90 días desde la cortesía, contando el mismo día. El % se calcula solo con quienes ya cumplieron ese plazo. Venta neta del archivo de ventas: solo locales propios.</p></div>
+          <div class="panel-head"><h2 class="por-local" data-titulo="Cortesía de 3 axilas: ¿después pagan?">Cortesía de 3 axilas: ¿después pagan?</h2><p class="nota">Leads que se llevaron la cortesía (casi siempre axilas, 3 sesiones) dentro de los 90 días del lead, y cuántos pagaron después un tratamiento: a los 60 y a los 90 días desde la cortesía, contando el mismo día. Solo cortesía = ese día se llevaron la cortesía sin pagar nada; Volvieron y pagaron = de esos, los que volvieron otro día y pagaron (a 90 días). El % se calcula solo con quienes ya cumplieron ese plazo. Venta neta del archivo de ventas: solo locales propios.</p></div>
           <p class="nota" id="l-cort-vacio" hidden>Sin datos de cortesía para esta selección (solo hay para locales propios).</p>
           <div id="l-cort-datos">
-            <section class="kpis kpis-4" id="l-cort-kpis"></section>
+            <section class="kpis kpis-3" id="l-cort-kpis"></section>
             <div class="tabla-scroll"><table class="ranking-com" id="l-t-cort-mes"></table></div>
             <h3 class="sub-cort">Por local</h3>
             <div class="tabla-scroll"><table class="ranking-com" id="l-t-cort-local"></table></div>
@@ -281,8 +281,8 @@
       'l-t-mes': ['Compraron', 'Compra en 3 días', 'Compradores nuevos'],
       'l-t-origen': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
       'l-t-local': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
-      'l-t-cort-mes': ['% de los que compraron', 'Venta neta después', 'Por cada uno que pagó'],
-      'l-t-cort-local': ['% de los que compraron', 'Venta neta después', 'Por cada uno que pagó'],
+      'l-t-cort-mes': ['% de los que compraron', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía'],
+      'l-t-cort-local': ['% de los que compraron', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía'],
       'tabla-mapa': 4, // Local y los 3 meses más recientes
       'tabla-conc': 4
     };
@@ -297,8 +297,8 @@
       'l-t-origen': ['Ticket', 'No concretaron', 'En curso'],
       'l-t-local': ['Ticket', 'No concretaron', 'En curso'],
       'l-t-mes': ['Compradores nuevos'],
-      'l-t-cort-mes': ['Por cada uno que pagó'],
-      'l-t-cort-local': ['Por cada uno que pagó'],
+      'l-t-cort-mes': ['Por cada uno que pagó', '% de los que compraron'],
+      'l-t-cort-local': ['Por cada uno que pagó', '% de los que compraron'],
       'tabla-mapa': 7, // Local y los 6 meses más recientes
       'tabla-conc': 7
     };

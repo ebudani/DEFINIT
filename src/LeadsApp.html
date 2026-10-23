@@ -24,7 +24,8 @@
   function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
   var CAMPOS = ['leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso', 'pagaron',
-    'cortesia', 'cort_c60', 'cort_p60', 'cort_c90', 'cort_p90', 'cort_pagaron', 'cort_neto'];
+    'cortesia', 'cort_c60', 'cort_p60', 'cort_c90', 'cort_p90', 'cort_pagaron', 'cort_neto',
+    'solo_cort', 'solo_c60', 'solo_v60', 'solo_c90', 'solo_v90', 'solo_pagaron', 'solo_neto'];
   var TRAMOS = [['d0', 'Mismo día'], ['d1_3', '1 a 3 días'], ['d4_7', '4 a 7 días'], ['d8_15', '8 a 15 días'],
     ['d16_30', '16 a 30 días'], ['d31_60', '31 a 60 días'], ['d61_90', '61 a 90 días']];
   var TIPOS = [['nuevo', 'Nuevos'], ['ya_lead', 'Ya habían sido leads'], ['ya_cliente', 'Ya eran clientes']];
@@ -364,23 +365,30 @@
     function p90(x) { return x.cort_c90 && x.cort_c90 >= x.cortesia / 2 ? x.cort_p90 / x.cort_c90 : null; }
     function r60(x) { return x.cort_c60 ? x.cort_p60 / x.cort_c60 : null; }
     function r90(x) { return x.cort_c90 ? x.cort_p90 / x.cort_c90 : null; }
+    function v60(x) { return x.solo_c60 ? x.solo_v60 / x.solo_c60 : null; }
+    function v90(x) { return x.solo_c90 ? x.solo_v90 / x.solo_c90 : null; }
     function tk(x) { return x.cort_pagaron ? x.cort_neto / x.cort_pagaron : null; }
     var tiles = [
       { label: 'Se llevaron la cortesía', valor: nf0.format(tot.cortesia), det: pct0(tot.compraron ? tot.cortesia / tot.compraron : null) + ' de los que compraron' },
       { label: 'Pagaron a los 60 días', valor: pct0(r60(tot)), det: nf0.format(tot.cort_p60) + ' de ' + nf0.format(tot.cort_c60) + ' con los 60 días cumplidos' },
       { label: 'Pagaron a los 90 días', valor: pct0(r90(tot)), det: nf0.format(tot.cort_p90) + ' de ' + nf0.format(tot.cort_c90) + ' con los 90 días cumplidos' },
-      { label: 'Venta neta después de la cortesía', valor: millones(tot.cort_neto), det: miles(tk(tot)) + ' por cada uno que pagó' }
+      { label: 'Venta neta después de la cortesía', valor: millones(tot.cort_neto), det: miles(tk(tot)) + ' por cada uno que pagó' },
+      { label: 'Vinieron solo por la cortesía', valor: nf0.format(tot.solo_cort), det: pct0(tot.cortesia ? tot.solo_cort / tot.cortesia : null) + ' de las cortesías: ese día no pagaron nada' },
+      { label: 'De esos, volvieron y pagaron', valor: pct0(v90(tot)),
+        det: pct0(v60(tot)) + ' a los 60 días · ' + pct0(v90(tot)) + ' a los 90 · ' + millones(tot.solo_neto) + ' de venta neta' }
     ];
     $('l-cort-kpis').innerHTML = tiles.map(function (k) {
       return '<div class="kpi"><div class="kpi-label">' + k.label + '</div><div class="kpi-valor">' + k.valor + '</div><div class="kpi-det">' + k.det + '</div></div>';
     }).join('');
     var fila = function (n, x, total) {
       return '<tr><td class="izq">' + esc(n) + '</td><td>' + nf0.format(x.cortesia) + '</td><td>' + pct0(x.compraron ? x.cortesia / x.compraron : null) + '</td>' +
-        celdaCort(total ? r60(x) : p60(x), total === 'tot') + celdaCort(total ? r90(x) : p90(x), total === 'tot') + '<td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td></tr>';
+        celdaCort(total ? r60(x) : p60(x), total === 'tot') + celdaCort(total ? r90(x) : p90(x), total === 'tot') + '<td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td>' +
+        '<td>' + nf0.format(x.solo_cort) + '</td><td>' + pct0(total || x.solo_c90 >= x.solo_cort / 2 ? v90(x) : null) + '</td></tr>';
     };
     var cab = function (primera) {
       return '<thead><tr><th class="izq">' + primera + '</th><th>Cortesías</th><th>% de los que compraron</th><th>Pagaron a 60 días</th>' +
-        '<th>Pagaron a 90 días</th><th>Venta neta después</th><th>Por cada uno que pagó</th></tr></thead>';
+        '<th>Pagaron a 90 días</th><th>Venta neta después</th><th>Por cada uno que pagó</th>' +
+        '<th>Solo cortesía</th><th>Volvieron y pagaron</th></tr></thead>';
     };
     $('l-t-cort-mes').innerHTML = cab('Mes') + '<tbody>' + mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') +
       '</tbody><tfoot>' + fila('Total del año', tot, 'tot') + '</tfoot>';
