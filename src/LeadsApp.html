@@ -348,31 +348,34 @@
     var hay = tot.cortesia > 0;
     $('l-cort-vacio').hidden = hay; $('l-cort-datos').hidden = !hay;
     if (!hay) return;
-    function p60(x) { return x.cort_c60 ? x.cort_p60 / x.cort_c60 : null; }
-    function p90(x) { return x.cort_c90 ? x.cort_p90 / x.cort_c90 : null; }
+    // Solo si al menos la mitad de las cortesías ya cumplió el plazo: si no, el % queda sesgado a las primeras del mes.
+    function p60(x) { return x.cort_c60 && x.cort_c60 >= x.cortesia / 2 ? x.cort_p60 / x.cort_c60 : null; }
+    function p90(x) { return x.cort_c90 && x.cort_c90 >= x.cortesia / 2 ? x.cort_p90 / x.cort_c90 : null; }
+    function r60(x) { return x.cort_c60 ? x.cort_p60 / x.cort_c60 : null; }
+    function r90(x) { return x.cort_c90 ? x.cort_p90 / x.cort_c90 : null; }
     function tk(x) { return x.cort_pagaron ? x.cort_neto / x.cort_pagaron : null; }
     var tiles = [
       { label: 'Se llevaron la cortesía', valor: nf0.format(tot.cortesia), det: pct0(tot.compraron ? tot.cortesia / tot.compraron : null) + ' de los que compraron' },
-      { label: 'Pagaron a los 60 días', valor: pct0(p60(tot)), det: nf0.format(tot.cort_p60) + ' de ' + nf0.format(tot.cort_c60) + ' con los 60 días cumplidos' },
-      { label: 'Pagaron a los 90 días', valor: pct0(p90(tot)), det: nf0.format(tot.cort_p90) + ' de ' + nf0.format(tot.cort_c90) + ' con los 90 días cumplidos' },
+      { label: 'Pagaron a los 60 días', valor: pct0(r60(tot)), det: nf0.format(tot.cort_p60) + ' de ' + nf0.format(tot.cort_c60) + ' con los 60 días cumplidos' },
+      { label: 'Pagaron a los 90 días', valor: pct0(r90(tot)), det: nf0.format(tot.cort_p90) + ' de ' + nf0.format(tot.cort_c90) + ' con los 90 días cumplidos' },
       { label: 'Venta neta después de la cortesía', valor: millones(tot.cort_neto), det: miles(tk(tot)) + ' por cada uno que pagó' }
     ];
     $('l-cort-kpis').innerHTML = tiles.map(function (k) {
       return '<div class="kpi"><div class="kpi-label">' + k.label + '</div><div class="kpi-valor">' + k.valor + '</div><div class="kpi-det">' + k.det + '</div></div>';
     }).join('');
-    var fila = function (n, x) {
+    var fila = function (n, x, total) {
       return '<tr><td class="izq">' + esc(n) + '</td><td>' + nf0.format(x.cortesia) + '</td><td>' + pct0(x.compraron ? x.cortesia / x.compraron : null) + '</td>' +
-        '<td>' + pct0(p60(x)) + '</td><td>' + pct0(p90(x)) + '</td><td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td></tr>';
+        '<td>' + pct0(total ? r60(x) : p60(x)) + '</td><td>' + pct0(total ? r90(x) : p90(x)) + '</td><td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td></tr>';
     };
     var cab = function (primera) {
       return '<thead><tr><th class="izq">' + primera + '</th><th>Cortesías</th><th>% de los que compraron</th><th>Pagaron a 60 días</th>' +
         '<th>Pagaron a 90 días</th><th>Venta neta después</th><th>Por cada uno que pagó</th></tr></thead>';
     };
     $('l-t-cort-mes').innerHTML = cab('Mes') + '<tbody>' + mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') +
-      '</tbody><tfoot>' + fila('Total del año', tot) + '</tfoot>';
+      '</tbody><tfoot>' + fila('Total del año', tot, true) + '</tfoot>';
     var locales = Object.keys(porLocal).filter(function (k) { return porLocal[k].cortesia > 0; })
       .sort(function (a, b) { return porLocal[b].cortesia - porLocal[a].cortesia; });
-    $('l-t-cort-local').innerHTML = cab('Local') + '<tbody>' + locales.map(function (k) { return fila(nombreLocal(k), porLocal[k]); }).join('') + '</tbody>';
+    $('l-t-cort-local').innerHTML = cab('Local') + '<tbody>' + locales.map(function (k) { return fila(nombreLocal(k), porLocal[k], true); }).join('') + '</tbody>';
   }
 
   function renderTablaCalif(porCalif) {
