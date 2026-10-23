@@ -20,29 +20,44 @@ function agregarFacturacionLeads() {
 
     var leads = leerLeadsBase(temporales);
     if (leads.length !== claves.length) throw new Error('La base de leads cambió desde el último cruce: volver a correr analizarLeadsCartera.');
-    var fact = {}, pagaron = {}, conMonto = 0, niveles = {};
+    // Por clave de la vista: venta neta, compradores que pagaron y los campos de la cortesía (ver medirCortesia).
+    var EXTRA = ['pagaron', 'cortesia', 'cort_c60', 'cort_p60', 'cort_c90', 'cort_p90', 'cort_pagaron', 'cort_neto'];
+    var acum = {}, conMonto = 0, niveles = {}, ultimaMs = Date.UTC(+V.ultima.slice(0, 4), +V.ultima.slice(5, 7) - 1, +V.ultima.slice(8, 10));
+    function sumar(clave, campo, n) { var x = acum[clave] = acum[clave] || {}; x[campo] = (x[campo] || 0) + n; }
     leads.forEach(function (l, k) {
       var cr = comprasDeLead(l, V);
       niveles[cr.nivel + 1] = (niveles[cr.nivel + 1] || 0) + 1;
-      var r = medirCompras(cr.listas, l);
-      if (!r.neto && !r.pago) return;
+      var r = medirCompras(cr.listas, l), co = medirCortesia(cr.listas, l, ultimaMs);
       if (r.pago) conMonto++;
+      if (!r.neto && !r.pago && !co) return;
       claves[k].slice(1).forEach(function (clave) {
-        fact[clave] = (fact[clave] || 0) + r.neto;
-        if (r.pago) pagaron[clave] = (pagaron[clave] || 0) + 1;
+        sumar(clave, 'facturacion', r.neto);
+        if (r.pago) sumar(clave, 'pagaron', 1);
+        if (!co) return;
+        sumar(clave, 'cortesia', 1); sumar(clave, 'cort_neto', co.neto);
+        if (co.p90) sumar(clave, 'cort_pagaron', 1);
+        if (co.c60) { sumar(clave, 'cort_c60', 1); if (co.p60) sumar(clave, 'cort_p60', 1); }
+        if (co.c90) { sumar(clave, 'cort_c90', 1); if (co.p90) sumar(clave, 'cort_p90', 1); }
       });
     });
 
-    // Reemplaza "facturacion" por la venta neta y agrega "pagaron" (compradores con venta neta > 0).
+    // Reemplaza "facturacion" por la venta neta y agrega las columnas EXTRA.
     var vista = libro.getSheetByName('vista').getDataRange().getValues();
-    var col = vista[0].indexOf('facturacion'), colC = vista[0].indexOf('compraron'), colP = vista[0].indexOf('pagaron');
-    if (colP < 0) { colP = vista[0].length; vista.forEach(function (f, r) { f[colP] = r === 0 ? 'pagaron' : ''; }); }
+    var col = vista[0].indexOf('facturacion'), colC = vista[0].indexOf('compraron');
+    var colX = EXTRA.map(function (c) {
+      var i = vista[0].indexOf(c);
+      if (i < 0) { i = vista[0].length; vista.forEach(function (f, r) { f[i] = r === 0 ? c : ''; }); }
+      return i;
+    });
     vista.forEach(function (f, r) {
       if (r === 0 || f[0] === 'info') return;
-      var clave = f.slice(0, 4).join('|');
-      // Locales con ventas en el archivo (propios): venta neta. El resto (franquicias): queda el valor del contrato.
-      if (V.locales[f[2]]) { f[col] = Math.round(fact[clave] || 0); f[colP] = pagaron[clave] || 0; }
-      else f[colP] = f[colC];
+      var x = acum[f.slice(0, 4).join('|')] || {};
+      // Locales con ventas en el archivo (propios): venta neta. El resto (franquicias): queda el valor del contrato,
+      // "pagaron" = compraron y sin datos de cortesía.
+      if (V.locales[f[2]]) {
+        f[col] = Math.round(x.facturacion || 0);
+        EXTRA.forEach(function (c, j) { f[colX[j]] = Math.round(x[c] || 0); });
+      } else EXTRA.forEach(function (c, j) { f[colX[j]] = c === 'pagaron' ? f[colC] : 0; });
     });
     escribir(libro, 'vista', vista.map(function (f) { return f.slice(); }));
     libro.setActiveSheet(libro.getSheetByName('vista')); libro.moveActiveSheet(1);
@@ -149,6 +164,29 @@ function medirCompras(listas, l) {
 }
 
 /**
+ * Cortesía (casi siempre axilas 3 sesiones): si el lead se llevó una cortesía dentro de los 90 días, mide si después
+ * pagó un tratamiento dentro de los 60 y de los 90 días desde la cortesía (contando el mismo día). "c60" / "c90" dicen
+ * si ese plazo ya está cumplido con las ventas del archivo (si no, el lead todavía puede pagar y no se cuenta).
+ */
+function medirCortesia(listas, l, ultimaMs) {
+  var DIA = 864e5, d0 = Math.floor(l.ms / DIA) * DIA, fin = d0 + DIAS_CONVERSION * DIA, cort = null, todas = [];
+  listas.forEach(function (lista) {
+    lista.forEach(function (c) {
+      todas.push(c);
+      if (c.cort && c.ms >= d0 && c.ms <= fin && (cort == null || c.ms < cort)) cort = c.ms;
+    });
+  });
+  if (cort == null) return null;
+  var r = { c60: cort + 60 * DIA <= ultimaMs, c90: cort + 90 * DIA <= ultimaMs, p60: false, p90: false, neto: 0 };
+  todas.forEach(function (c) {
+    if (c.cort || c.ms < cort || c.ms > cort + 90 * DIA) return;
+    r.neto += c.neto;
+    if (c.neto > 0) { r.p90 = true; if (c.ms <= cort + 60 * DIA) r.p60 = true; }
+  });
+  return r;
+}
+
+/**
  * Diagnóstico (no cambia la vista): leads de locales propios de ene–sep 2026 por nivel de cruce con las ventas,
  * y calidad de los mails / teléfonos de "base Clientes". Pestaña "comparacion_cruce" de la planilla privada.
  */
@@ -191,7 +229,7 @@ function compararCruceVentas() {
 }
 
 /** Lo llama la ejecución de cada hora: cuando cambia la versión del cálculo, recalcula la facturación una vez (aparte). */
-var VERSION_FACTURACION = 'v3';
+var VERSION_FACTURACION = 'v4';
 function programarFacturacion() {
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty('facturacionVersion') === VERSION_FACTURACION) return;
