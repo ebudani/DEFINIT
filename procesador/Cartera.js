@@ -42,33 +42,10 @@ function analizarLeadsCartera() {
     c = null;
     var segCartera = Math.round((Date.now() - inicio) / 1000);
 
-    // Leads (sin repetidos dentro de las 24 h).
-    var tl = convertir(DriveApp.getFileById(LEADS_BASE_ID)); temporales.push(tl);
-    var t = tablaCon(SpreadsheetApp.openById(tl).getSheets(), { fecha: /^fecha y hora/i, origen: /^source$/i,
-      calificacion: /^rating$/i, nombre: /^name$/i, apellido: /^surname$/i, email: /^email$/i,
-      tel: /^phone$/i, cel: /^mobile_phone$/i, local: /^store$/i });
-    var filas = [];
-    for (i = 0; i < t.n; i++) {
-      var ms = fechaHoraMs(t.col.fecha[i]);
-      if (ms == null) continue;
-      var tkL = tokensNombre(t.col.nombre[i]).concat(tokensNombre(t.col.apellido[i]));
-      var tel = telefono10(t.col.cel[i]) || telefono10(t.col.tel[i]), mail = mailLimpio(t.col.email[i]);
-      var persona = tel || mail || claveCompleta(tkL);
-      if (!persona) continue;
-      filas.push({ ms: ms, tel: tel, mail: mail, nom: tkL.length >= 2 ? claveCompleta(tkL) : '', persona: persona,
-        local: claveLead(t.col.local[i]), origen: origenLimpio(reparar(String(t.col.origen[i] || '-')).trim() || '-'),
-        calif: reparar(String(t.col.calificacion[i] || '-')).trim() || '-' });
-    }
-    t = null;
-    filas.sort(function (a, b) { return a.ms - b.ms; });
-
+    var leadsBase = leerLeadsBase(temporales);
     var DIA = 864e5, PLAZO = DIAS_CONVERSION * DIA, corte = maxVenta - PLAZO;
-    var ultimo = {}, vistos = {}, leads = [];
-    filas.forEach(function (l) {
-      var p = ultimo[l.persona];
-      if (p != null && l.ms - p < DIA) return;
-      ultimo[l.persona] = l.ms;
-      l.yaEraLead = !!vistos[l.persona]; vistos[l.persona] = true;
+    var leads = [];
+    leadsBase.forEach(function (l) {
       var idx = {};
       (porTel[l.tel] || []).concat(porMail[l.mail] || []).forEach(function (k) { idx[k] = true; });
       var ks = Object.keys(idx);
@@ -90,6 +67,10 @@ function analizarLeadsCartera() {
     });
 
     escribirVistaCartera(libro, leads, maxVenta, corte);
+    escribir(libro, 'leads_claves', [['i', 'A', 'B', 'C']].concat(leads.map(function (l, k) { return [k].concat(clavesVista(l)); })));
+    // La facturación neta sale de Venta_Items_Sesiones (otra ejecución: el archivo es grande).
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'agregarFacturacionLeads') ScriptApp.deleteTrigger(t); });
+    ScriptApp.newTrigger('agregarFacturacionLeads').timeBased().after(60 * 1000).create();
     props.setProperty('carteraFirma', firmaCartera());
     props.deleteProperty('carteraProgramado');
     escribir(libro, 'info', [['dato', 'valor'],
@@ -111,7 +92,9 @@ function analizarLeadsCartera() {
 /** Firma de los archivos de la carpeta de leads: si cambia la cartera o la base de leads, hay que recalcular. */
 function firmaCartera() {
   var c = masRecienteEn(CARPETA_LEADS_ID, PATRON_CARTERA), l = DriveApp.getFileById(LEADS_BASE_ID);
-  return (c ? c.getId() + ':' + c.getLastUpdated().getTime() : '-') + '|' + l.getLastUpdated().getTime() + '|v1';
+  var v = masReciente(listarCarpeta(), /^venta_items_sesiones.*\.xlsx$/i); // de ahí sale la facturación neta
+  return (c ? c.getId() + ':' + c.getLastUpdated().getTime() : '-') + '|' + l.getLastUpdated().getTime() + '|' +
+    (v ? v.getLastUpdated().getTime() : '-') + '|v2';
 }
 
 /** Lo llama la ejecución de cada hora: si cambiaron los archivos, programa el cruce (corre aparte, tarda varios minutos). */
@@ -120,6 +103,47 @@ function programarCartera() {
   if (props.getProperty('carteraProgramado') || props.getProperty('carteraFirma') === firmaCartera()) return;
   ScriptApp.newTrigger('analizarLeadsCartera').timeBased().after(60 * 1000).create();
   props.setProperty('carteraProgramado', new Date().toISOString());
+}
+
+/**
+ * Base de leads de Natalia, sin repetidos (misma persona dentro de las 24 h = mismo lead), ordenada por fecha.
+ * La usan el cruce con la cartera y el de facturación: tiene que dar exactamente la misma lista en los dos.
+ */
+function leerLeadsBase(temporales) {
+  var tl = convertir(DriveApp.getFileById(LEADS_BASE_ID)); temporales.push(tl);
+  var t = tablaCon(SpreadsheetApp.openById(tl).getSheets(), { fecha: /^fecha y hora/i, origen: /^source$/i,
+    calificacion: /^rating$/i, nombre: /^name$/i, apellido: /^surname$/i, email: /^email$/i,
+    tel: /^phone$/i, cel: /^mobile_phone$/i, local: /^store$/i });
+  var filas = [];
+  for (var i = 0; i < t.n; i++) {
+    var ms = fechaHoraMs(t.col.fecha[i]);
+    if (ms == null) continue;
+    var tkL = tokensNombre(t.col.nombre[i]).concat(tokensNombre(t.col.apellido[i]));
+    var tel = telefono10(t.col.cel[i]) || telefono10(t.col.tel[i]), mail = mailLimpio(t.col.email[i]);
+    var persona = tel || mail || claveCompleta(tkL);
+    if (!persona) continue;
+    filas.push({ ms: ms, tel: tel, mail: mail, nom: tkL.length >= 2 ? claveCompleta(tkL) : '', persona: persona,
+      local: claveLead(t.col.local[i]), origen: origenLimpio(reparar(String(t.col.origen[i] || '-')).trim() || '-'),
+      calif: reparar(String(t.col.calificacion[i] || '-')).trim() || '-' });
+  }
+  filas.sort(function (a, b) { return a.ms - b.ms || (a.persona < b.persona ? -1 : 1); });
+  var ultimo = {}, vistos = {}, leads = [];
+  filas.forEach(function (l) {
+    var p = ultimo[l.persona];
+    if (p != null && l.ms - p < 864e5) return;
+    ultimo[l.persona] = l.ms;
+    l.yaEraLead = !!vistos[l.persona]; vistos[l.persona] = true;
+    leads.push(l);
+  });
+  return leads;
+}
+
+/** Claves de los bloques A (tipo), B (calificación) y C (origen) de la pestaña "vista" para un lead. */
+var TOP_ORIGENES = null;
+function clavesVista(l) {
+  var tipo = l.yaEraCliente ? 'ya_cliente' : l.yaEraLead ? 'ya_lead' : 'nuevo';
+  return [['A', l.mes, l.local, tipo].join('|'), ['B', l.mes, l.local, l.calif].join('|'),
+    ['C', l.mes, l.local, TOP_ORIGENES && TOP_ORIGENES[l.origen] ? l.origen : 'otros'].join('|')];
 }
 
 function fecha_(d) { return Utilities.formatDate(d, 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd HH:mm'); }
@@ -135,7 +159,7 @@ function masRecienteEn(carpetaId, patron) {
 function escribirVistaCartera(libro, leads, maxVenta, corte) {
   var cuenta = {};
   leads.forEach(function (l) { cuenta[l.origen] = (cuenta[l.origen] || 0) + 1; });
-  var top = {};
+  var top = TOP_ORIGENES = {};
   Object.keys(cuenta).sort(function (a, b) { return cuenta[b] - cuenta[a]; }).slice(0, 25).forEach(function (o) { top[o] = true; });
   var A = {}, B = {}, C = {};
   var sumar = function (mapa, k, l) {
@@ -149,10 +173,8 @@ function escribirVistaCartera(libro, leads, maxVenta, corte) {
     else x[13]++;
   };
   leads.forEach(function (l) {
-    var tipo = l.yaEraCliente ? 'ya_cliente' : l.yaEraLead ? 'ya_lead' : 'nuevo';
-    sumar(A, ['A', l.mes, l.local, tipo].join('|'), l);
-    sumar(B, ['B', l.mes, l.local, l.calif].join('|'), l);
-    sumar(C, ['C', l.mes, l.local, top[l.origen] ? l.origen : 'otros'].join('|'), l);
+    var k = clavesVista(l);
+    sumar(A, k[0], l); sumar(B, k[1], l); sumar(C, k[2], l);
   });
   var filas = [['bloque', 'mes', 'local', 'clave', 'leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso']];
   [A, B, C].forEach(function (mapa) {
