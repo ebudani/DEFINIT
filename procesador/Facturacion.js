@@ -116,6 +116,9 @@ function compararCruceVentas() {
     // Contactos de cada nombre (completo y parcial) y nombre de cada contacto, según "base Clientes".
     var d = tablaCon(hojas, { cliente: /^cliente$/i, mail: /^mail$/i, tel: /^tel[eé]fono$/i });
     var contCompleto = {}, contParcial = {}, porTel = {}, porMail = {};
+    // Calidad de los contactos de "base Clientes" (solo cantidades y formas, sin datos).
+    var dirFilas = d.n, dirTel = 0, dirMail = 0, telTodos = {}, mailTodos = {}, formas = {};
+    function forma(x) { return String(x == null ? '' : x).slice(0, 40).replace(/[0-9]/g, '9').replace(/[A-Za-zÀ-ÿ]/g, 'a').replace(/a+/g, 'a').replace(/9{4,}/g, '9999') + ' (' + typeof x + ')'; }
     function anotar(mapa, k, t, m) {
       var x = mapa[k] = mapa[k] || { tel: {}, mail: {} };
       if (t) x.tel[t] = true;
@@ -126,6 +129,9 @@ function compararCruceVentas() {
       if (tkc.length < 2) continue;
       var kc = claveCompleta(tkc), kpc = tkc[0] + '|' + tkc[tkc.length - 1];
       var t = telefono10(d.col.tel[i]), m = mailLimpio(d.col.mail[i]);
+      if (t) { dirTel++; telTodos[t] = true; }
+      if (m) { dirMail++; mailTodos[m] = true; }
+      if (i % 5000 === 0) { var fz = 'tel ' + forma(d.col.tel[i]) + ' · mail ' + forma(d.col.mail[i]); formas[fz] = (formas[fz] || 0) + 1; }
       if (porCompleto[kc]) anotar(contCompleto, kc, t, m);
       if (porParcial[kpc]) anotar(contParcial, kpc, t, m);
       if (porCompleto[kc]) {
@@ -146,7 +152,7 @@ function compararCruceVentas() {
     var res = NIVELES.map(function (n) { return { nivel: n, leads: 0, pago: 0, soloCortesia: 0, neto: 0 }; });
     var actual = { leads: 0, pago: 0, soloCortesia: 0, neto: 0 };
     var DIA = 864e5, PLAZO = DIAS_CONVERSION * DIA, desde = Date.UTC(2026, 0, 1), hasta = Date.UTC(2026, 9, 1);
-    var conContacto = 0, total = 0;
+    var conContacto = 0, total = 0, telEnDir = 0, mailEnDir = 0;
 
     function medir(listas, l) {
       var d0 = Math.floor(l.ms / DIA) * DIA, neto = 0, pago = false, cortesia = false;
@@ -164,6 +170,8 @@ function compararCruceVentas() {
       if (l.ms < desde || l.ms >= hasta || !locales[l.local]) return;
       total++;
       if (l.tel || l.mail) conContacto++;
+      if (l.tel && telTodos[l.tel]) telEnDir++;
+      if (l.mail && mailTodos[l.mail]) mailEnDir++;
       var porContacto = Object.keys(Object.assign({}, porTel[l.tel] || {}, porMail[l.mail] || {}));
       var nivel, listas = [];
       var kp = l.parcial;
@@ -203,6 +211,11 @@ function compararCruceVentas() {
     filas.push(['leads de locales propios ene–sep 2026', total, '', '', '', '']);
     filas.push(['de esos, con mail o teléfono', conContacto, '', '', '', '']);
     filas.push(['ventas del archivo', primera + ' a ' + ultima, '', '', '', '']);
+    filas.push(['base Clientes: filas / con teléfono válido / con mail válido', dirFilas + ' / ' + dirTel + ' / ' + dirMail, '', '', '', '']);
+    filas.push(['leads cuyo teléfono / mail aparece en base Clientes', telEnDir + ' / ' + mailEnDir, '', '', '', '']);
+    Object.keys(formas).sort(function (a, b) { return formas[b] - formas[a]; }).slice(0, 8).forEach(function (fz) {
+      filas.push(['forma de los datos (9 = dígito, a = letras)', fz + ' × ' + formas[fz], '', '', '', '']);
+    });
     filas.push(['calculado', fecha_(new Date()) + ' · ' + Math.round((Date.now() - inicio) / 1000) + ' s', '', '', '', '']);
     escribir(libro, 'comparacion_cruce', filas);
   } finally {
@@ -211,7 +224,7 @@ function compararCruceVentas() {
 }
 
 /** Lo llama la ejecución de cada hora: corre la comparación una sola vez por versión (aparte, tarda unos minutos). */
-var VERSION_COMPARACION = 'v1';
+var VERSION_COMPARACION = 'v2';
 function programarComparacion() {
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty('comparacionVersion') === VERSION_COMPARACION) return;
