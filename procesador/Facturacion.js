@@ -21,7 +21,8 @@ function agregarFacturacionLeads() {
     var leads = leerLeadsBase(temporales);
     if (leads.length !== claves.length) throw new Error('La base de leads cambió desde el último cruce: volver a correr analizarLeadsCartera.');
     // Por clave de la vista: venta neta, compradores que pagaron y los campos de la cortesía (ver medirCortesia).
-    var EXTRA = ['pagaron', 'cortesia', 'cort_c60', 'cort_p60', 'cort_c90', 'cort_p90', 'cort_pagaron', 'cort_neto'];
+    var EXTRA = ['pagaron', 'cortesia', 'cort_c60', 'cort_p60', 'cort_c90', 'cort_p90', 'cort_pagaron', 'cort_neto',
+      'solo_cort', 'solo_c60', 'solo_v60', 'solo_c90', 'solo_v90', 'solo_pagaron', 'solo_neto'];
     var acum = {}, conMonto = 0, niveles = {}, ultimaMs = Date.UTC(+V.ultima.slice(0, 4), +V.ultima.slice(5, 7) - 1, +V.ultima.slice(8, 10));
     function sumar(clave, campo, n) { var x = acum[clave] = acum[clave] || {}; x[campo] = (x[campo] || 0) + n; }
     leads.forEach(function (l, k) {
@@ -36,6 +37,12 @@ function agregarFacturacionLeads() {
         if (!co) return;
         sumar(clave, 'cortesia', 1); sumar(clave, 'cort_neto', co.neto);
         if (co.p90) sumar(clave, 'cort_pagaron', 1);
+        if (co.solo) {
+          sumar(clave, 'solo_cort', 1); sumar(clave, 'solo_neto', co.netoVuelta);
+          if (co.v90) sumar(clave, 'solo_pagaron', 1);
+          if (co.c60) { sumar(clave, 'solo_c60', 1); if (co.v60) sumar(clave, 'solo_v60', 1); }
+          if (co.c90) { sumar(clave, 'solo_c90', 1); if (co.v90) sumar(clave, 'solo_v90', 1); }
+        }
         if (co.c60) { sumar(clave, 'cort_c60', 1); if (co.p60) sumar(clave, 'cort_p60', 1); }
         if (co.c90) { sumar(clave, 'cort_c90', 1); if (co.p90) sumar(clave, 'cort_p90', 1); }
       });
@@ -177,11 +184,18 @@ function medirCortesia(listas, l, ultimaMs) {
     });
   });
   if (cort == null) return null;
-  var r = { c60: cort + 60 * DIA <= ultimaMs, c90: cort + 90 * DIA <= ultimaMs, p60: false, p90: false, neto: 0 };
+  // "solo": ese día se llevó solo la cortesía (no pagó nada); "v60" / "v90": volvió y pagó después (otro día).
+  var r = { c60: cort + 60 * DIA <= ultimaMs, c90: cort + 90 * DIA <= ultimaMs, p60: false, p90: false, neto: 0,
+    solo: true, v60: false, v90: false, netoVuelta: 0 };
   todas.forEach(function (c) {
     if (c.cort || c.ms < cort || c.ms > cort + 90 * DIA) return;
     r.neto += c.neto;
-    if (c.neto > 0) { r.p90 = true; if (c.ms <= cort + 60 * DIA) r.p60 = true; }
+    if (c.ms > cort) r.netoVuelta += c.neto;
+    if (c.neto > 0) {
+      r.p90 = true; if (c.ms <= cort + 60 * DIA) r.p60 = true;
+      if (c.ms === cort) r.solo = false;
+      else { r.v90 = true; if (c.ms <= cort + 60 * DIA) r.v60 = true; }
+    }
   });
   return r;
 }
@@ -229,7 +243,7 @@ function compararCruceVentas() {
 }
 
 /** Lo llama la ejecución de cada hora: cuando cambia la versión del cálculo, recalcula la facturación una vez (aparte). */
-var VERSION_FACTURACION = 'v4';
+var VERSION_FACTURACION = 'v5';
 function programarFacturacion() {
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty('facturacionVersion') === VERSION_FACTURACION) return;
