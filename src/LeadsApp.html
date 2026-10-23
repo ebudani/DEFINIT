@@ -179,7 +179,7 @@
     d.A.forEach(function (o) { if (meses.indexOf(o.mes) >= 0) { total += o.leads; if (!enSeleccion(o.local)) fuera += o.leads; } });
     var grupoTxt = { propio: 'Solo locales propios', franquicia: 'Solo franquicias', todos: 'Todos los locales, incluidos los leads sin local' }[f.grupo] || 'Solo locales propios';
     avisos.push(grupoTxt + (fuera && !f.local ? ' (quedan afuera ' + nf0.format(fuera) + ' leads, el ' + pct0(total ? fuera / total : null) + ')' : '') + '.');
-    if (f.grupo !== 'propio') avisos.push('Mendoza y TOM todavía no figuran en la cartera de clientes: sus compras no se pueden medir. La facturación de las franquicias no está en el archivo de ventas: figura en $0.');
+    if (f.grupo !== 'propio') avisos.push('Mendoza y TOM todavía no figuran en la cartera de clientes: sus compras no se pueden medir. En franquicias, la facturación es el valor del contrato de la cartera de clientes (no hay venta neta en el archivo de ventas).');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
     var A = resumir('A', mv, function (o) { return o.clave; });          // por tipo
