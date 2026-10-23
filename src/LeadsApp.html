@@ -36,6 +36,17 @@
     { desde: 0.06, fondo: '#f7c948', texto: '#1a1a19', lbl: '6–12%' },
     { desde: -1, fondo: '#d03b3b', texto: '#ffffff', lbl: 'menos de 6%' }
   ];
+  // Semáforo de la cortesía (% que pagó después): el promedio anda en 50%.
+  var ESCALA_CORT = [
+    { desde: 0.55, fondo: '#1f8a3b', texto: '#ffffff', lbl: '55% o más' },
+    { desde: 0.48, fondo: '#8fd48f', texto: '#1a1a19', lbl: '48–55%' },
+    { desde: 0.42, fondo: '#f7c948', texto: '#1a1a19', lbl: '42–48%' },
+    { desde: -1, fondo: '#d03b3b', texto: '#ffffff', lbl: 'menos de 42%' }
+  ];
+  function celdaCort(v, total) {
+    var e = v == null || total ? null : ESCALA_CORT.filter(function (x) { return v >= x.desde; })[0];
+    return '<td class="celda-seg"' + (e ? ' style="background:' + e.fondo + ';color:' + e.texto + '"' : '') + '>' + pct0(v) + '</td>';
+  }
   function colorConv(v) { return ESCALA.filter(function (e) { return v >= e.desde; })[0]; }
 
   // ---------- Vista ----------
@@ -365,14 +376,17 @@
     }).join('');
     var fila = function (n, x, total) {
       return '<tr><td class="izq">' + esc(n) + '</td><td>' + nf0.format(x.cortesia) + '</td><td>' + pct0(x.compraron ? x.cortesia / x.compraron : null) + '</td>' +
-        '<td>' + pct0(total ? r60(x) : p60(x)) + '</td><td>' + pct0(total ? r90(x) : p90(x)) + '</td><td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td></tr>';
+        celdaCort(total ? r60(x) : p60(x), total === 'tot') + celdaCort(total ? r90(x) : p90(x), total === 'tot') + '<td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td></tr>';
     };
     var cab = function (primera) {
       return '<thead><tr><th class="izq">' + primera + '</th><th>Cortesías</th><th>% de los que compraron</th><th>Pagaron a 60 días</th>' +
         '<th>Pagaron a 90 días</th><th>Venta neta después</th><th>Por cada uno que pagó</th></tr></thead>';
     };
     $('l-t-cort-mes').innerHTML = cab('Mes') + '<tbody>' + mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') +
-      '</tbody><tfoot>' + fila('Total del año', tot, true) + '</tfoot>';
+      '</tbody><tfoot>' + fila('Total del año', tot, 'tot') + '</tfoot>';
+    $('l-escala-cort').innerHTML = '<span style="margin-right:6px">% que pagó después de la cortesía:</span>' + ESCALA_CORT.map(function (e) {
+      return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px"><i style="background:' + e.fondo + '"></i>' + e.lbl + '</span>';
+    }).join('');
     var locales = Object.keys(porLocal).filter(function (k) { return porLocal[k].cortesia > 0; })
       .sort(function (a, b) { return porLocal[b].cortesia - porLocal[a].cortesia; });
     $('l-t-cort-local').innerHTML = cab('Local') + '<tbody>' + locales.map(function (k) { return fila(nombreLocal(k), porLocal[k], true); }).join('') + '</tbody>';
