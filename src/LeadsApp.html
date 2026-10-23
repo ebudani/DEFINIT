@@ -23,7 +23,8 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-  var CAMPOS = ['leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso', 'pagaron'];
+  var CAMPOS = ['leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso', 'pagaron',
+    'cortesia', 'cort_c60', 'cort_p60', 'cort_c90', 'cort_p90', 'cort_pagaron', 'cort_neto'];
   var TRAMOS = [['d0', 'Mismo día'], ['d1_3', '1 a 3 días'], ['d4_7', '4 a 7 días'], ['d8_15', '8 a 15 días'],
     ['d16_30', '16 a 30 días'], ['d31_60', '31 a 60 días'], ['d61_90', '61 a 90 días']];
   var TIPOS = [['nuevo', 'Nuevos'], ['ya_lead', 'Ya habían sido leads'], ['ya_cliente', 'Ya eran clientes']];
@@ -206,6 +207,7 @@
     renderTendencia(meses);
     renderTablaCalif(porCalif);
     renderMesAMes(meses);
+    renderCortesia(mv, porLocal);
     renderTabla('l-t-origen', porOrigen, function (k) { return k; }, 15, 'Origen');
     renderTabla('l-t-local', porLocal, nombreLocal, 0, 'Local');
   }
@@ -338,6 +340,39 @@
     $('l-t-mes').innerHTML = '<thead><tr><th class="izq">Mes</th><th>Leads</th><th>vs año anterior</th><th>Compraron</th><th>% compró</th>' +
       '<th>Venta neta</th><th>Compra en 3 días</th><th>Compradores nuevos</th></tr></thead><tbody>' + filas.join('') + '</tbody>' +
       '<tfoot>' + fila('Total del año', tot, totAnt, totNuevos, true) + '</tfoot>';
+  }
+
+  /** Cortesía (casi siempre axilas 3 sesiones): cuántos compradores la usaron y cuántos después pagaron un tratamiento. */
+  function renderCortesia(mv, porLocal) {
+    var tot = resumir('A', mv), por = resumir('A', mv, function (o) { return o.mes; }).grupos;
+    var hay = tot.cortesia > 0;
+    $('l-cort-vacio').hidden = hay; $('l-cort-datos').hidden = !hay;
+    if (!hay) return;
+    function p60(x) { return x.cort_c60 ? x.cort_p60 / x.cort_c60 : null; }
+    function p90(x) { return x.cort_c90 ? x.cort_p90 / x.cort_c90 : null; }
+    function tk(x) { return x.cort_pagaron ? x.cort_neto / x.cort_pagaron : null; }
+    var tiles = [
+      { label: 'Se llevaron la cortesía', valor: nf0.format(tot.cortesia), det: pct0(tot.compraron ? tot.cortesia / tot.compraron : null) + ' de los que compraron' },
+      { label: 'Pagaron a los 60 días', valor: pct0(p60(tot)), det: nf0.format(tot.cort_p60) + ' de ' + nf0.format(tot.cort_c60) + ' con los 60 días cumplidos' },
+      { label: 'Pagaron a los 90 días', valor: pct0(p90(tot)), det: nf0.format(tot.cort_p90) + ' de ' + nf0.format(tot.cort_c90) + ' con los 90 días cumplidos' },
+      { label: 'Venta neta después de la cortesía', valor: millones(tot.cort_neto), det: miles(tk(tot)) + ' por cada uno que pagó' }
+    ];
+    $('l-cort-kpis').innerHTML = tiles.map(function (k) {
+      return '<div class="kpi"><div class="kpi-label">' + k.label + '</div><div class="kpi-valor">' + k.valor + '</div><div class="kpi-det">' + k.det + '</div></div>';
+    }).join('');
+    var fila = function (n, x) {
+      return '<tr><td class="izq">' + esc(n) + '</td><td>' + nf0.format(x.cortesia) + '</td><td>' + pct0(x.compraron ? x.cortesia / x.compraron : null) + '</td>' +
+        '<td>' + pct0(p60(x)) + '</td><td>' + pct0(p90(x)) + '</td><td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td></tr>';
+    };
+    var cab = function (primera) {
+      return '<thead><tr><th class="izq">' + primera + '</th><th>Cortesías</th><th>% de los que compraron</th><th>Pagaron a 60 días</th>' +
+        '<th>Pagaron a 90 días</th><th>Venta neta después</th><th>Por cada uno que pagó</th></tr></thead>';
+    };
+    $('l-t-cort-mes').innerHTML = cab('Mes') + '<tbody>' + mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') +
+      '</tbody><tfoot>' + fila('Total del año', tot) + '</tfoot>';
+    var locales = Object.keys(porLocal).filter(function (k) { return porLocal[k].cortesia > 0; })
+      .sort(function (a, b) { return porLocal[b].cortesia - porLocal[a].cortesia; });
+    $('l-t-cort-local').innerHTML = cab('Local') + '<tbody>' + locales.map(function (k) { return fila(nombreLocal(k), porLocal[k]); }).join('') + '</tbody>';
   }
 
   function renderTablaCalif(porCalif) {
