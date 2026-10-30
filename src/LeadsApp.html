@@ -90,7 +90,7 @@
         if (d.sinAcceso || d.sinDatos) {
           estado.className = 'estado error';
           estado.textContent = d.sinAcceso
-            ? 'Tu cuenta de Google no tiene acceso a la planilla "DEFINIT – Base comercial". Pedile acceso a quien administra el tablero.'
+            ? 'Tu cuenta de Google no tiene acceso a la planilla "DEFINIT – Base comercial". Pedile acceso a quien administra el tablero. (' + d.detalle + ')'
             : 'Todavía no hay datos de leads en la base comercial.';
           $('l-contenido').hidden = true;
           return;

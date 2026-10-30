@@ -15,3 +15,6 @@ node_modules/
 .claude/
 dev/leads_cubo.json
 dev/leads_vista.json
+
+# Gráficos para mails (datos internos)
+dev/mail_leads/

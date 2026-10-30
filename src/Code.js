@@ -30,14 +30,22 @@ function include(nombre) {
  * porque SpreadsheetApp.openById exige el permiso de edición; la API funciona
  * con spreadsheets.readonly, así el tablero no puede modificar la planilla.
  */
+// Google deja destildar permisos al autorizar: sin el de planillas el error dice "permission",
+// pero no es falta de acceso a la planilla sino falta de autorizar el tablero.
+var SIN_AUTORIZAR = /permission to call|required permissions|insufficient authentication scopes/i;
+var SIN_ACCESO = /permission|permiso|403|404|not found|no se encontr/i;
+var MSG_AUTORIZAR = 'Falta autorizar el permiso para leer planillas. Abrí el tablero en una ventana de incógnito y, cuando Google lo pida, tildá todos los permisos.';
+
 function getData() {
   var info;
   try {
     info = Sheets.Spreadsheets.get(SPREADSHEET_ID, { fields: 'properties/title,sheets/properties/title' });
   } catch (e) {
-    if (/permission|permiso|403|404|not found|no se encontr/i.test(String(e && e.message))) {
+    var msg = String(e && e.message || e);
+    if (SIN_AUTORIZAR.test(msg)) throw new Error(MSG_AUTORIZAR + ' (' + msg + ')');
+    if (SIN_ACCESO.test(msg)) {
       throw new Error('tu cuenta de Google no tiene acceso a "Facturación 2026". ' +
-        'Pedile acceso a quien administra la planilla, o entrá con la cuenta que sí lo tiene.');
+        'Pedile acceso a quien administra la planilla, o entrá con la cuenta que sí lo tiene. (' + msg + ')');
     }
     throw e;
   }

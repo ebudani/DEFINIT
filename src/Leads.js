@@ -9,8 +9,9 @@ function getLeads() {
     lectura = Sheets.Spreadsheets.Values.batchGet(BASE_COMERCIAL_ID, { ranges: ['leads_vista'], valueRenderOption: 'UNFORMATTED_VALUE' });
   } catch (e) {
     var msg = String(e && e.message || e);
+    if (SIN_AUTORIZAR.test(msg)) throw new Error(MSG_AUTORIZAR + ' (' + msg + ')');
     if (/parse range|leads_vista/i.test(msg)) return JSON.stringify({ sinDatos: true });
-    if (/permission|permiso|403|404|not found|no se encontr/i.test(msg)) return JSON.stringify({ sinAcceso: true });
+    if (SIN_ACCESO.test(msg)) return JSON.stringify({ sinAcceso: true, detalle: msg });
     throw e;
   }
   var filas = lectura.valueRanges[0].values || [];

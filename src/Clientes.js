@@ -17,7 +17,8 @@ function getClientes() {
     lectura = leerPestanas(pestanas);
   } catch (e) {
     var msg = String(e && e.message || e);
-    if (/permission|permiso|403|404|not found|no se encontr/i.test(msg)) return JSON.stringify({ sinAcceso: true });
+    if (SIN_AUTORIZAR.test(msg)) throw new Error(MSG_AUTORIZAR + ' (' + msg + ')');
+    if (SIN_ACCESO.test(msg)) return JSON.stringify({ sinAcceso: true, detalle: msg });
     // Mientras el procesador no corrió con la versión nueva, la pestaña por período no existe.
     if (/parse range|clientes_periodo/i.test(msg)) lectura = leerPestanas(pestanas.filter(function (p) { return p !== 'clientes_periodo'; }));
     else throw e;

@@ -6,8 +6,8 @@
  * recibe matrices de valores tal como las devuelve Range.getValues().
  *
  * Estructura esperada de la planilla:
- *  - "Ventas Mensuales": fila 1 con la fecha de actualización en A1 y la fecha
- *    de cada mes en bloques de 9 columnas (E1, N1, W1, ...). Cada bloque arranca
+ *  - "Ventas Mensuales": fila 1 con la fecha de actualización (en A1 o sobre el
+ *    mes en curso, J1) y el día 1 de cada mes en bloques de 9 columnas (E1, N1, W1, ...). Cada bloque arranca
  *    3 columnas antes de la fecha: Local | Venta | Meta | % | Súper | % | ...
  *    Primero los locales propios (encabezado "Local"), luego "FRANQUICIAS".
  *  - Una pestaña por mes ("Septiembre26", "Agosto26", ...): por cada local una
@@ -101,7 +101,12 @@ function parsearResumen(valores) {
     var fechaMes = aFechaISO(fila0[c]);
     if (!fechaMes) continue;
     var ini = c - 3; // columna "Local" del bloque
-    if (ini < 0) continue;
+    // Un mes tiene "Local" en la fila 2, al comienzo del bloque. Otra fecha en la fila 1 (por
+    // ejemplo "29-10" sobre el mes en curso) es la de actualización, no un mes nuevo.
+    if (ini < 0 || texto((valores[1] || [])[ini]) !== 'Local') {
+      if (!actualizado) actualizado = fechaMes;
+      continue;
+    }
 
     var mes = { mes: fechaMes.slice(0, 7), diasRemanentes: null, locales: [] };
     var tipo = null;
