@@ -1,6 +1,6 @@
 /**
- * Análisis de leads (PRIVADO): cruza la base de leads de Natalia ("Base desde 1 de enero 2025.xlsx",
- * carpeta "Leads Euge") con las ventas (Venta_Items_Sesiones.xlsx) para saber cuántos leads compraron,
+ * Análisis de leads (PRIVADO): cruza la base de leads de Natalia ("Leads p sistemas desde el 1 de enero
+ * 2025.xlsx", pestaña "Base completa", carpeta "Leads Euge") con las ventas (Venta_Items_Sesiones.xlsx) para saber cuántos leads compraron,
  * cuánto facturaron, cuántos ya eran clientes o leads, cuántos no concretaron y cuánto tardan en comprar.
  *
  * Los archivos solo se leen (no se modifican). Nombres, mails y teléfonos se usan únicamente en memoria
@@ -8,7 +8,8 @@
  * con nadie) llegan solo cantidades, montos y días. No toca la Base comercial ni el tablero.
  */
 
-var LEADS_BASE_ID = '19XNbeIznMXqr8zYC6PpSMU1OkVBWM94s';
+// Reemplaza a "Base desde 1 de enero 2025.xlsx" (19XNbeIznMXqr8zYC6PpSMU1OkVBWM94s), que llegaba hasta el 11/10/2026.
+var LEADS_BASE_ID = '1kwlleu1THMVTkEMXC4k5Kf9gfrQxy5Lc';
 var NOMBRE_ANALISIS = 'DEFINIT – Análisis de leads (privado)';
 var DIAS_CONVERSION = 90; // una compra cuenta para el lead si ocurre dentro de estos días
 
