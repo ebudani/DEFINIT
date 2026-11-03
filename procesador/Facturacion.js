@@ -74,6 +74,13 @@ function agregarFacturacionLeads() {
       ' días). Leads que pagaron: ' + conMonto + ' · leads por nivel de cruce: ' + Object.keys(niveles).sort().map(function (n) { return n + ') ' + niveles[n]; }).join(', ') +
       ' · segundos ventas / total: ' + segVentas + ' / ' + Math.round((Date.now() - inicio) / 1000)]);
     escribir(libro, 'info', info);
+  } catch (e) {
+    // Igual que en el cruce con la cartera: el error queda a la vista en la planilla privada.
+    try {
+      var previa = libro.getSheetByName('info').getDataRange().getValues().filter(function (f) { return !/^error facturación/.test(f[0]); });
+      escribir(libro, 'info', previa.concat([['error facturación', fecha_(new Date()) + ' · ' + String(e && e.stack || e)]]));
+    } catch (e2) { /* sin planilla */ }
+    throw e;
   } finally {
     temporales.forEach(function (id) { try { Drive.Files.remove(id); } catch (e) { /* ya no está */ } });
   }

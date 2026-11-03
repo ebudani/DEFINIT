@@ -83,6 +83,8 @@ function analizarLeadsCartera() {
       ['privacidad', 'Solo cantidades: ningún nombre, mail ni teléfono.']]);
   } catch (e) {
     props.deleteProperty('carteraProgramado');
+    // Queda a la vista en la planilla privada: las ejecuciones automáticas no muestran el error en otro lado.
+    try { escribir(libro, 'info', [['dato', 'valor'], ['error', fecha_(new Date()) + ' · ' + String(e && e.stack || e)]]); } catch (e2) { /* sin planilla */ }
     throw e;
   } finally {
     temporales.forEach(function (id) { try { Drive.Files.remove(id); } catch (e) { /* ya no está */ } });
@@ -100,7 +102,10 @@ function firmaCartera() {
 /** Lo llama la ejecución de cada hora: si cambiaron los archivos, programa el cruce (corre aparte, tarda varios minutos). */
 function programarCartera() {
   var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('carteraProgramado') || props.getProperty('carteraFirma') === firmaCartera()) return;
+  // Si una ejecución se cortó por tiempo, la marca queda puesta: pasada una hora se vuelve a programar.
+  var programado = props.getProperty('carteraProgramado');
+  if (programado && Date.now() - new Date(programado).getTime() < 3600e3) return;
+  if (props.getProperty('carteraFirma') === firmaCartera()) return;
   ScriptApp.newTrigger('analizarLeadsCartera').timeBased().after(60 * 1000).create();
   props.setProperty('carteraProgramado', new Date().toISOString());
 }
