@@ -92,14 +92,13 @@
   .titulo { margin-bottom: 16px; }
 
   /* Título con las dos vistas: Tablero Mensual de Ventas | Indicadores comerciales */
-  .vistas { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+  .vistas { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
   .vistas button {
-    font: inherit; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--muted);
-    background: none; border: 0; border-bottom: 3px solid transparent; padding: 2px 2px 4px; cursor: pointer;
+    font: inherit; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--muted);
+    background: var(--surface); border: 1.5px solid var(--muted); border-radius: 8px; padding: 7px 14px; cursor: pointer;
   }
-  .vistas button + button { margin-left: 14px; }
-  .vistas button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); }
   .vistas button:hover { color: var(--ink); }
+  .vistas button[aria-selected="true"] { color: var(--ink); border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--brand); }
   .vistas button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .aviso { background: #fff3c4; border: 1px solid #f7c948; border-radius: 10px; padding: 10px 14px; margin: 0 0 16px; font-size: 12px; }
   .kpis.kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -307,10 +306,8 @@
 
     /* Las dos vistas como botones lado a lado */
     .titulo { margin-bottom: 10px; }
-    .vistas { display: grid; grid-template-columns: 1.3fr 1.3fr 0.9fr; gap: 0; background: var(--surface);
-      border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
-    .vistas button { font-size: 12.5px; padding: 8px 4px; border: 0; border-radius: 7px; text-align: center; line-height: 1.25; }
-    .vistas button + button { margin-left: 0; }
+    .vistas { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; align-items: stretch; gap: 6px; }
+    .vistas button { font-size: 12.5px; padding: 8px 4px; border-radius: 7px; text-align: center; line-height: 1.25; }
     .vistas button[aria-selected="true"] { background: var(--brand); color: var(--brand-ink); }
     .sub { font-size: 11px; margin-top: 6px; }
 

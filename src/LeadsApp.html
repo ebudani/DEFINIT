@@ -6,10 +6,10 @@
   'use strict';
 
   var $ = function (id) { return document.getElementById(id); };
-  var est = { datos: null, cargando: false, filtros: null, embudo: 'total', dias: 'total', origenMes: '' };
+  var est = { datos: null, cargando: false, filtros: null, embudo: 'total', dias: 'total', origenMes: '', localMes: '' };
   var graficos = {};
 
-  var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']; // siempre con mayúscula
   var nf1 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   var nf0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
   function pct(v) { return v == null || !isFinite(v) ? '–' : nf1.format(v * 100) + '%'; }
@@ -82,6 +82,10 @@
   });
   $('l-origen-mes').addEventListener('change', function () {
     est.origenMes = this.value;
+    if (est.datos) render();
+  });
+  $('l-local-mes').addEventListener('change', function () {
+    est.localMes = this.value;
     if (est.datos) render();
   });
   $('l-dias-vista').addEventListener('click', function (e) {
@@ -201,7 +205,7 @@
     var meses = d.meses.filter(function (m) { return m.slice(0, 4) === anio && m < d.ultimaVenta; });
     var mv = meses.filter(function (m) { return m >= d.primeraVenta; });
     avisos.push('Año ' + anio + ': de ' + MESES[0] + ' a ' + (meses.length ? MESES[+meses[meses.length - 1].slice(5, 7) - 1] : '–') +
-      ' (hasta el último mes con ventas para medir las compras). Esta pestaña no usa el filtro de Fecha.');
+      ', último mes cerrado. Esta pestaña no usa el filtro de Fecha.');
     if (!meses.length) {
       aviso.hidden = false; aviso.textContent = 'No hay leads en el período elegido.';
       $('l-kpis').innerHTML = ''; $('l-cuerpo').hidden = true;
@@ -213,7 +217,8 @@
     var fuera = 0, total = 0;
     d.A.forEach(function (o) { if (meses.indexOf(o.mes) >= 0) { total += o.leads; if (!enSeleccion(o.local)) fuera += o.leads; } });
     var grupoTxt = { propio: 'Solo locales propios', franquicia: 'Solo franquicias', todos: 'Todos los locales, incluidos los leads sin local' }[f.grupo] || 'Solo locales propios';
-    avisos.push(grupoTxt + (fuera && !f.local ? ' (quedan afuera ' + nf0.format(fuera) + ' leads, el ' + pct0(total ? fuera / total : null) + ')' : '') + '.');
+    var quienes = { propio: ' de franquicias y sin local', franquicia: ' de locales propios y sin local' }[f.grupo] || '';
+    avisos.push(grupoTxt + (fuera && !f.local ? ': quedan afuera ' + nf0.format(fuera) + ' leads (' + pct0(total ? fuera / total : null) + ')' + quienes : '') + '.');
     if (f.grupo !== 'propio') avisos.push('Mendoza y TOM todavía no figuran en la cartera de clientes: sus compras no se pueden medir. En franquicias, la facturación es el valor del contrato de la cartera de clientes (no hay venta neta en el archivo de ventas).');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
@@ -243,22 +248,30 @@
     renderTablaCalif(porCalif);
     renderMesAMes(meses);
     renderCortesia(mv, porLocal);
-    $('l-origen-mes').innerHTML = '<option value="">' + mayus(MESES[+mv[0].slice(5, 7) - 1]) + ' a ' + MESES[+mv[mv.length - 1].slice(5, 7) - 1] + '</option>' +
+    var opcionesMes = '<option value="">' + mayus(MESES[+mv[0].slice(5, 7) - 1]) + ' a ' + MESES[+mv[mv.length - 1].slice(5, 7) - 1] + '</option>' +
       mv.slice().reverse().map(function (m) { return '<option value="' + m + '">' + mayus(MESES[+m.slice(5, 7) - 1]) + '</option>'; }).join('');
-    $('l-origen-mes').value = est.origenMes;
+    $('l-origen-mes').innerHTML = opcionesMes; $('l-origen-mes').value = est.origenMes;
+    $('l-local-mes').innerHTML = opcionesMes; $('l-local-mes').value = est.localMes;
     renderTabla('l-t-origen', porOrigen, function (k) { return k; }, 25, 'Origen');
-    renderTabla('l-t-local', porLocal, nombreLocal, 0, 'Local');
+    if (mv.indexOf(est.localMes) < 0) est.localMes = '';
+    $('l-local-mes').value = est.localMes;
+    renderTabla('l-t-local', est.localMes ? resumir('A', [est.localMes], function (o) { return o.local; }).grupos : porLocal, nombreLocal, 0, 'Local');
   }
 
   function renderKpis(todos, A, ant, meses, limpio, completos) {
     var dif = ant.leads ? todos.leads / ant.leads - 1 : null;
     var nuevos = A.grupos.nuevo || vacio();
+    var ultimo = meses[meses.length - 1];
+    var leadsUltimo = resumir('A', [ultimo]).leads, leadsPrevio = meses.length > 1 ? resumir('A', [meses[meses.length - 2]]).leads : 0;
+    var cambio = leadsPrevio ? leadsUltimo / leadsPrevio - 1 : null; // contra el mes anterior
+    var varMes = cambio == null ? '' : ' <span class="' + (cambio >= 0 ? 'pos-var' : 'neg') + '">' + (cambio >= 0 ? '▲ +' : '▼ −') + pct(Math.abs(cambio)) + '</span>';
     var tiles = [
       { cls: 'hero', label: 'Leads', valor: nf0.format(todos.leads),
-        det: dif == null ? 'Sin datos del año anterior' : '<span class="' + (dif >= 0 ? 'pos-var' : 'neg') + '">' + (dif >= 0 ? '+' : '−') + pct(Math.abs(dif)) + '</span> vs mismo período ' + (meses[0].slice(0, 4) - 1) },
+        det: (dif == null ? 'Sin datos del año anterior' : '<span class="' + (dif >= 0 ? 'pos-var' : 'neg') + '">' + (dif >= 0 ? '+' : '−') + pct(Math.abs(dif)) + '</span> vs mismo período ' + (meses[0].slice(0, 4) - 1)) +
+          '<br>Promedio mensual ' + meses[0].slice(0, 4) + ': ' + nf0.format(todos.leads / meses.length) + ' · ' + mayus(MESES[+ultimo.slice(5, 7) - 1]) + ': ' + nf0.format(leadsUltimo) + varMes },
       { label: 'Conversión', valor: pct(conv(limpio)),
-        det: limpio.leads ? nf0.format(limpio.compraron) + ' de ' + nf0.format(limpio.leads) + ' leads (' + ({ propio: 'locales propios', franquicia: 'franquicias', todos: 'todos los locales' }[(est.filtros || {}).grupo] || 'locales propios') + '), ' + mesCorto(completos[0]).toLowerCase() + ' a ' +
-          mesCorto(completos[completos.length - 1]).toLowerCase() + ' (con los 90 días cumplidos).' : 'Sin leads con 90 días cumplidos' },
+        det: limpio.leads ? nf0.format(limpio.compraron) + ' de ' + nf0.format(limpio.leads) + ' leads (' + ({ propio: 'locales propios', franquicia: 'franquicias', todos: 'todos los locales' }[(est.filtros || {}).grupo] || 'locales propios') + '), ' + mesCorto(completos[0]) + ' a ' +
+          mesCorto(completos[completos.length - 1]) + ' (con los 90 días cumplidos).' : 'Sin leads con 90 días cumplidos' },
       { label: 'Facturación de los que compraron', valor: millones(A.facturacion), det: 'Venta neta de sus compras dentro de los 90 días · ' + miles(ticket(A)) + ' por comprador que pagó (sin la cortesía)' },
       { label: 'Compran en los primeros 3 días', valor: pct0(en3(A)), det: 'Promedio ' + nf1.format(A.compraron ? A.dias_suma / A.compraron : 0) + ' días hasta la compra' },
       { label: 'Compradores nuevos', valor: pct0(A.compraron ? nuevos.compraron / A.compraron : null), det: nf0.format(nuevos.compraron) + ' sin compras ni leads previos' }
