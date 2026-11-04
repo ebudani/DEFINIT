@@ -375,7 +375,7 @@ function reparar(s) {
 
 // Local del Excel de leads -> clave de Facturación (la usa el tablero para los filtros Grupo / Local).
 var LOCALES_LEADS = [
-  ['caballito', 'little horse'], ['belgrano', 'juramento'], ['recoleta', 'recoleta'], ['ramos', 'ramos'],
+  ['caballito', 'caballito'], ['little horse', 'caballito'], ['belgrano', 'juramento'], ['recoleta', 'recoleta'], ['ramos', 'ramos'],
   ['coronel', 'coronel'], ['devoto', 'devoto'], ['pueyrredon', 'pueyrredon'], ['urquiza', 'urquiza'],
   ['palmas', 'palmas'], ['unicenter', 'unicenter'], ['lomitas', 'lomitas'], ['colegiales', 'colegiales'],
   ['dot', 'dot'], ['lanus', 'lanus'], ['nordelta', 'nordelta'], ['tucuman', 'tucuman centro'],

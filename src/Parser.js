@@ -54,9 +54,10 @@ function texto(v) { return v == null ? '' : String(v).trim(); }
 
 /** Clave estable para cruzar locales entre pestañas ("Lanus" == "Lanús"). */
 function claveLocal(nombre) {
-  return texto(nombre).toLowerCase()
+  var clave = texto(nombre).toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/\s+/g, ' ');
+  return clave === 'little horse' ? 'caballito' : clave; // Little Horse es Caballito
 }
 
 // Números de serie entre 2000 y 2100: en las filas de fechas, eso es una fecha.
@@ -89,7 +90,7 @@ function serialAFecha(serial) {
 }
 
 // Nombre con el que se muestra un local cuando la planilla usa otro (la clave interna no cambia).
-var NOMBRES_VISIBLES = { 'little horse': 'Caballito' };
+var NOMBRES_VISIBLES = { 'caballito': 'Caballito' };
 
 /** Lee la pestaña "Ventas Mensuales": un bloque por mes con locales, metas y súper. */
 function parsearResumen(valores) {

@@ -288,11 +288,11 @@ function agregarCobros(filas) {
 }
 
 // Nombre en el sistema de cobros -> nombre en Facturación 2026 (cuando no es el mismo).
-// Caballito = Little Horse. Tom no está en Facturación: queda sin equivalencia.
+// Little Horse es Caballito. Tom no está en Facturación: queda sin equivalencia.
 var EQUIVALENCIAS_LOCALES = {
   'alcorta shopping': 'alcorta', 'coronel diaz': 'coronel', 'dot baires shopping': 'dot',
   'las palmas del pilar': 'palmas', 'lomas de san isidro': 'san isidro', 'portal palermo': 'portal',
-  'ramos mejia': 'ramos', 'solar shopping': 'solar', 'ecommerce': 'ecom', 'caballito': 'little horse',
+  'ramos mejia': 'ramos', 'solar shopping': 'solar', 'ecommerce': 'ecom', 'little horse': 'caballito',
   'tom': null
 };
 

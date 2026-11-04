@@ -6,7 +6,7 @@
   'use strict';
 
   var $ = function (id) { return document.getElementById(id); };
-  var est = { datos: null, cargando: false, filtros: null, embudo: 'total', dias: 'total' };
+  var est = { datos: null, cargando: false, filtros: null, embudo: 'total', dias: 'total', origenMes: '' };
   var graficos = {};
 
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -80,6 +80,10 @@
     Array.prototype.forEach.call(this.children, function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
     if (est.datos) render();
   });
+  $('l-origen-mes').addEventListener('change', function () {
+    est.origenMes = this.value;
+    if (est.datos) render();
+  });
   $('l-dias-vista').addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
@@ -137,7 +141,7 @@
         return;
       }
       if (!datos[f[0]]) return;
-      var o = { mes: String(f[1]), local: String(f[2]), clave: String(f[3]) };
+      var o = { mes: String(f[1]), local: String(f[2]) === 'little horse' ? 'caballito' : String(f[2]), clave: String(f[3]) }; // Little Horse es Caballito
       enc.slice(4).forEach(function (c, i) { o[c] = Number(f[i + 4]) || 0; });
       if (f[0] === 'S') o.mes = o.mes.replace(/^sem /, ''); else meses[o.mes] = true; // en S, "mes" es el lunes de la semana
       datos[f[0]].push(o);
@@ -216,7 +220,8 @@
     var A = resumir('A', mv, function (o) { return o.clave; });          // por tipo
     var porLocal = resumir('A', mv, function (o) { return o.local; }).grupos;
     var porCalif = resumir('B', mv, function (o) { return o.clave; }).grupos;
-    var porOrigen = resumir('C', mv, function (o) { return o.clave; }).grupos;
+    if (mv.indexOf(est.origenMes) < 0) est.origenMes = '';
+    var porOrigen = resumir('C', est.origenMes ? [est.origenMes] : mv, function (o) { return o.clave; }).grupos;
     var todos = resumir('A', meses), anterior = resumir('A', meses.map(mesMenos12));
 
     // Conversión "limpia": locales propios (las franquicias no están en ventas) y meses con los 90 días cumplidos.
@@ -238,7 +243,10 @@
     renderTablaCalif(porCalif);
     renderMesAMes(meses);
     renderCortesia(mv, porLocal);
-    renderTabla('l-t-origen', porOrigen, function (k) { return k; }, 15, 'Origen');
+    $('l-origen-mes').innerHTML = '<option value="">' + mayus(MESES[+mv[0].slice(5, 7) - 1]) + ' a ' + MESES[+mv[mv.length - 1].slice(5, 7) - 1] + '</option>' +
+      mv.slice().reverse().map(function (m) { return '<option value="' + m + '">' + mayus(MESES[+m.slice(5, 7) - 1]) + '</option>'; }).join('');
+    $('l-origen-mes').value = est.origenMes;
+    renderTabla('l-t-origen', porOrigen, function (k) { return k; }, 25, 'Origen');
     renderTabla('l-t-local', porLocal, nombreLocal, 0, 'Local');
   }
 
@@ -538,10 +546,12 @@
         '<td>' + pct0(en3(x)) + '</td><td>' + nf0.format(x.no_concretaron) + '</td><td>' + nf0.format(x.en_curso) + '</td></tr>';
     };
     var tot = vacio(); claves.forEach(function (k) { sumar(tot, grupos[k]); });
+    var otros = maximo && grupos.otros; // lo que no entra en la lista: va abajo y suma en el total
+    if (otros) sumar(tot, otros);
     $(id).innerHTML = '<thead><tr><th class="izq">' + titulo + '</th><th>Leads</th><th>Compraron</th><th>% compró</th>' +
       '<th>Venta neta</th><th>Ticket</th><th>Compra en 3 días</th><th>No concretaron</th><th>En curso</th></tr></thead><tbody>' +
-      claves.map(function (k) { return fila(nombre(k), grupos[k]); }).join('') + '</tbody><tfoot>' +
-      fila(maximo ? 'Total de estos ' + claves.length : 'Total', tot, true) + '</tfoot>';
+      claves.map(function (k) { return fila(nombre(k), grupos[k]); }).join('') + (otros ? fila('Otros', otros) : '') + '</tbody><tfoot>' +
+      fila('Total', tot, true) + '</tfoot>';
   }
 
   $('l-escala').innerHTML = '<span style="margin-right:6px">% compró:</span>' + ESCALA.map(function (e) {
