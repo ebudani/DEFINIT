@@ -236,14 +236,20 @@
                 <div class="tabla-scroll tabla-alta" id="l-periodo-scroll"><table class="ranking-com" id="l-t-periodo"></table></div>
               </div>
             </div></section>
-          <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="¿Cuánto tardan en comprar?">¿Cuánto tardan en comprar?</h2><p class="nota" id="l-n-dias"></p></div>
-            <div class="chart"><canvas id="l-ch-dias"></canvas></div></section>
+          <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="¿Cuánto tardan en comprar?">¿Cuánto tardan en comprar?</h2><p class="nota" id="l-n-dias"></p>
+              <div class="segmentado embudo-vista" role="radiogroup" aria-label="Ver cuánto tardan" id="l-dias-vista">
+                <button type="button" role="radio" data-v="total" aria-checked="true">Total</button>
+                <button type="button" role="radio" data-v="mes" aria-checked="false">Mes</button>
+              </div></div>
+            <div class="chart" id="l-dias-total"><canvas id="l-ch-dias"></canvas></div>
+            <div id="l-dias-mes" hidden>
+              <p class="nota" id="l-n-cuando">Días desde el lead hasta la primera compra.</p>
+              <div class="tabla-scroll"><table class="ranking-com" id="l-t-dias"></table></div>
+            </div></section>
           <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Nuevos, ya leads y ya clientes">Nuevos, ya leads y ya clientes</h2><p class="nota">Nuevos = primer contacto, sin compras ni leads previos. Ya habían sido leads = mismo teléfono / mail con un lead anterior (más de 24 h antes). Ya eran clientes = compraron antes del lead: clientes que vuelven a consultar.</p></div>
             <div class="leyenda" id="l-leyenda-tipos"></div><div class="chart"><canvas id="l-ch-tipos"></canvas></div></section>
           <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Leads por mes y % que compró">Leads por mes y % que compró</h2><p class="nota">Barras: leads del año anterior (claro, a la izquierda) y del año actual (oscuro, a la derecha). Línea: % que compró (desde que hay ventas).</p></div>
             <div class="leyenda" id="l-leyenda-tendencia"></div><div class="chart"><canvas id="l-ch-tendencia"></canvas></div></section>
-          <section class="panel panel-ancho"><div class="panel-head"><h2>Cuándo compran</h2><p class="nota" id="l-n-cuando">Días desde el lead hasta la primera compra.</p></div>
-            <div class="tabla-scroll"><table class="ranking-com" id="l-t-dias"></table></div></section>
           <section class="panel"><div class="panel-head"><h2>Según la calificación del equipo</h2><p class="nota">Calificación cargada en el sistema de leads contra lo que realmente compró.</p></div>
             <div class="tabla-scroll"><table class="ranking-com" id="l-t-calif"></table></div></section>
         </div>

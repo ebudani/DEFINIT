@@ -211,8 +211,8 @@
   .chart { position: relative; height: 240px; }
   .chart-alto { height: 280px; }
   .panel-ancho { grid-column: 1 / -1; }
-  .ranking-com td.celda-doble { line-height: 1.25; }
-  .celda-doble small { display: block; font-size: 10.5px; color: var(--muted); }
+  .ranking-com td.celda-doble { white-space: nowrap; }
+  .celda-doble small { font-size: 10.5px; color: var(--muted); }
   .embudo-vista { margin-top: 10px; }
   .tabla-alta { max-height: 420px; overflow-y: auto; margin-top: 12px; }
   .tabla-alta thead th { position: sticky; top: 0; z-index: 2; }
@@ -290,6 +290,8 @@
   }
   @media (max-width: 900px) {
     .col-tb { display: none; }
+    .ranking-com td.celda-doble { white-space: normal; line-height: 1.25; }
+    .celda-doble small { display: block; }
   }
   @media (max-width: 600px) {
     body { padding: 12px 12px 32px; font-size: 12.5px; }

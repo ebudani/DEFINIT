@@ -6,7 +6,7 @@
   'use strict';
 
   var $ = function (id) { return document.getElementById(id); };
-  var est = { datos: null, cargando: false, filtros: null, embudo: 'total' };
+  var est = { datos: null, cargando: false, filtros: null, embudo: 'total', dias: 'total' };
   var graficos = {};
 
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -77,6 +77,13 @@
     var b = e.target.closest('button');
     if (!b) return;
     est.embudo = b.getAttribute('data-v');
+    Array.prototype.forEach.call(this.children, function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
+    if (est.datos) render();
+  });
+  $('l-dias-vista').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    est.dias = b.getAttribute('data-v');
     Array.prototype.forEach.call(this.children, function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
     if (est.datos) render();
   });
@@ -380,13 +387,17 @@
 
   /** Cuándo compran: matriz mes por tramo de días, con compradores y % sobre los compradores del mes. */
   function renderCuando(mv, A) {
+    var mes = est.dias === 'mes';
+    $('l-dias-total').hidden = mes; $('l-dias-mes').hidden = !mes;
+    $('l-dias-total').closest('.panel').classList.toggle('panel-ancho', mes);
+    if (!mes && graficos['l-ch-dias']) graficos['l-ch-dias'].resize();
     var por = resumir('A', mv, function (o) { return o.mes; }).grupos;
     var celda = function (n, base) {
-      return '<td class="celda-doble">' + nf0.format(n) + '<small>' + pct0(base ? n / base : null) + '</small></td>';
+      return '<td class="celda-doble">' + nf0.format(n) + ' <small>(' + pct0(base ? n / base : null) + ')</small></td>';
     };
     var fila = function (nombre, x) {
       return '<tr><td class="izq">' + esc(nombre) + '</td>' + TRAMOS.map(function (t) { return celda(x[t[0]], x.compraron); }).join('') +
-        '<td class="celda-doble">' + nf0.format(x.compraron) + '<small>' + (x.compraron ? '100%' : '–') + '</small></td></tr>';
+        '<td class="celda-doble">' + nf0.format(x.compraron) + ' <small>(' + (x.compraron ? '100%' : '–') + ')</small></td></tr>';
     };
     $('l-t-dias').innerHTML = '<thead><tr><th class="izq">Cuándo compran</th>' + TRAMOS.map(function (t) { return '<th>' + t[1] + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>' +
       mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') + '</tbody><tfoot>' + fila('Total', A) + '</tfoot>';
