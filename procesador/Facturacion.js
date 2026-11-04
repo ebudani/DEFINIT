@@ -57,6 +57,7 @@ function agregarFacturacionLeads() {
       return i;
     });
     vista.forEach(function (f, r) {
+      if (f[0] === 'info') f[4] = 'venta neta a ' + V.ultima; // la usa la Fuente de la pestaña Leads
       if (r === 0 || f[0] === 'info') return;
       var x = acum[f.slice(0, 4).join('|')] || {};
       // Locales con ventas en el archivo (propios): venta neta. El resto (franquicias): queda el valor del contrato,

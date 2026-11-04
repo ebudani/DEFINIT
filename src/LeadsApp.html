@@ -119,8 +119,10 @@
         }
         est.datos = preparar(d.vista);
         var x = est.datos;
-        $('l-fuente').textContent = 'Fuente: base de leads + cartera de clientes (cruce por teléfono, mail y nombre) · leads de ' + mesLargo(x.meses[0]) + ' a ' + mesLargo(x.meses[x.meses.length - 1]) +
-          ' · ventas ' + x.info.ventas.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1') + ' · sin datos personales: solo cantidades';
+        var mesAnio = function (m) { return mesCorto(m) + m.slice(2, 4); };
+        $('l-fuente').textContent = 'Fuente: Base de Leads ' + mesAnio(x.meses[0]) + ' a ' + mesAnio(x.meses[x.meses.length - 1]) +
+          ' / Cartera a ' + x.fechaVentas.split('-').reverse().join('/') +
+          (x.info.ventaNeta ? ' / Ventas a ' + x.info.ventaNeta.split('-').reverse().join('/') : '');
         $('l-fuente').hidden = $('vista-leads').hidden;
         estado.hidden = true;
         $('l-contenido').hidden = false;
@@ -142,6 +144,7 @@
         info.ventas = String(f[1] || '').replace(/^ventas /, '');
         info.plazo = String(f[2] || '').replace(/^plazo /, '');
         info.corte = String(f[3] || '').replace(/^no concretó hasta /, '');
+        info.ventaNeta = String(f[4] || '').replace(/^venta neta a /, '');
         return;
       }
       if (!datos[f[0]]) return;
@@ -204,8 +207,6 @@
     // Hasta el mes anterior al último con ventas: el mes en curso todavía no tiene leads completos ni tiempo para comprar.
     var meses = d.meses.filter(function (m) { return m.slice(0, 4) === anio && m < d.ultimaVenta; });
     var mv = meses.filter(function (m) { return m >= d.primeraVenta; });
-    avisos.push('Año ' + anio + ': de ' + MESES[0] + ' a ' + (meses.length ? MESES[+meses[meses.length - 1].slice(5, 7) - 1] : '–') +
-      ', último mes cerrado. Esta pestaña no usa el filtro de Fecha.');
     if (!meses.length) {
       aviso.hidden = false; aviso.textContent = 'No hay leads en el período elegido.';
       $('l-kpis').innerHTML = ''; $('l-cuerpo').hidden = true;
@@ -213,12 +214,6 @@
     }
     $('l-cuerpo').hidden = false;
     if (mv.length < meses.length) avisos.push('Las compras se miden desde ' + mesLargo(d.primeraVenta) + ', cuando empiezan las ventas del archivo.');
-    // Cuántos leads quedan afuera (franquicias y sin local) en los meses del análisis.
-    var fuera = 0, total = 0;
-    d.A.forEach(function (o) { if (meses.indexOf(o.mes) >= 0) { total += o.leads; if (!enSeleccion(o.local)) fuera += o.leads; } });
-    var grupoTxt = { propio: 'Solo locales propios', franquicia: 'Solo franquicias', todos: 'Todos los locales, incluidos los leads sin local' }[f.grupo] || 'Solo locales propios';
-    var quienes = { propio: ' de franquicias y sin local', franquicia: ' de locales propios y sin local' }[f.grupo] || '';
-    avisos.push(grupoTxt + (fuera && !f.local ? ': quedan afuera ' + nf0.format(fuera) + ' leads (' + pct0(total ? fuera / total : null) + ')' + quienes : '') + '.');
     if (f.grupo !== 'propio') avisos.push('Mendoza y TOM todavía no figuran en la cartera de clientes: sus compras no se pueden medir. En franquicias, la facturación es el valor del contrato de la cartera de clientes (no hay venta neta en el archivo de ventas).');
     aviso.hidden = !avisos.length; aviso.textContent = avisos.join(' ');
 
