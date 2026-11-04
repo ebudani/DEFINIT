@@ -221,8 +221,21 @@
       <section class="kpis" id="l-kpis"></section>
       <div id="l-cuerpo">
         <div class="grid-2">
-          <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Embudo: de lead a cliente">Embudo: de lead a cliente</h2><p class="nota" id="l-n-embudo"></p></div>
-            <div class="chart"><canvas id="l-ch-embudo"></canvas></div></section>
+          <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Embudo: de lead a cliente">Embudo: de lead a cliente</h2><p class="nota" id="l-n-embudo"></p>
+              <div class="segmentado embudo-vista" role="radiogroup" aria-label="Ver el embudo" id="l-embudo-vista">
+                <button type="button" role="radio" data-v="total" aria-checked="true">Total</button>
+                <button type="button" role="radio" data-v="mes" aria-checked="false">Mes</button>
+                <button type="button" role="radio" data-v="semana" aria-checked="false">Semana</button>
+              </div></div>
+            <div class="chart" id="l-embudo-total"><canvas id="l-ch-embudo"></canvas></div>
+            <div id="l-embudo-periodo" hidden>
+              <p class="nota" id="l-periodo-vacio" hidden>Todavía no hay datos por semana: aparecen cuando corre el cruce de leads.</p>
+              <div id="l-periodo-datos">
+                <div class="leyenda" id="l-leyenda-periodo"></div>
+                <div class="chart chart-alto"><canvas id="l-ch-periodo"></canvas></div>
+                <div class="tabla-scroll tabla-alta" id="l-periodo-scroll"><table class="ranking-com" id="l-t-periodo"></table></div>
+              </div>
+            </div></section>
           <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="¿Cuánto tardan en comprar?">¿Cuánto tardan en comprar?</h2><p class="nota" id="l-n-dias"></p></div>
             <div class="chart"><canvas id="l-ch-dias"></canvas></div></section>
           <section class="panel"><div class="panel-head"><h2 class="por-local" data-titulo="Nuevos, ya leads y ya clientes">Nuevos, ya leads y ya clientes</h2><p class="nota">Nuevos = primer contacto, sin compras ni leads previos. Ya habían sido leads = mismo teléfono / mail con un lead anterior (más de 24 h antes). Ya eran clientes = compraron antes del lead: clientes que vuelven a consultar.</p></div>
@@ -239,7 +252,7 @@
           <div class="tabla-scroll"><table class="ranking-com" id="l-t-mes"></table></div>
         </section>
         <section class="panel">
-          <div class="panel-head"><h2 class="por-local" data-titulo="Cortesía de 3 axilas: ¿después pagan?">Cortesía de 3 axilas: ¿después pagan?</h2><p class="nota">Leads que se llevaron la cortesía (casi siempre axilas, 3 sesiones) dentro de los 90 días del lead, y cuántos pagaron después un tratamiento: a los 60 y a los 90 días desde la cortesía, contando el mismo día. Solo cortesía = ese día se llevaron la cortesía sin pagar nada; Volvieron y pagaron = de esos, los que volvieron otro día y pagaron (a 90 días). El % se calcula solo con quienes ya cumplieron ese plazo. Venta neta del archivo de ventas: solo locales propios.</p></div>
+          <div class="panel-head"><h2 class="por-local" data-titulo="Cortesía de 3 axilas: ¿después pagan?">Cortesía de 3 axilas: ¿después pagan?</h2><p class="nota">Leads que se llevaron la cortesía (casi siempre axilas, 3 sesiones) dentro de los 90 días del lead, y cuántos pagaron después un tratamiento: a los 60 y a los 90 días desde la cortesía, contando el mismo día. Solo cortesía = ese día se llevaron la cortesía sin pagar nada; Volvieron y pagaron = de esos, los que volvieron otro día y pagaron (a 90 días). El % se calcula solo con quienes ya cumplieron ese plazo; En curso = menos de la mitad de las cortesías del mes lo cumplió. Pagaron hasta ahora = pagaron sobre todas las cortesías, cumplieran o no el plazo: en los meses en curso todavía puede subir. Venta neta del archivo de ventas: solo locales propios.</p></div>
           <p class="nota" id="l-cort-vacio" hidden>Sin datos de cortesía para esta selección (solo hay para locales propios).</p>
           <div id="l-cort-datos">
             <section class="kpis kpis-3" id="l-cort-kpis"></section>
@@ -281,8 +294,9 @@
       'l-t-mes': ['vs año anterior', 'Compraron', 'Compra en 3 días', 'Compradores nuevos'],
       'l-t-origen': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
       'l-t-local': ['Compraron', 'Ticket', 'Compra en 3 días', 'No concretaron', 'En curso'],
-      'l-t-cort-mes': ['% de los que compraron', 'Pagaron a 60 días', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía'],
-      'l-t-cort-local': ['% de los que compraron', 'Pagaron a 60 días', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía'],
+      'l-t-periodo': ['Con presupuesto', 'Compraron', 'Dif. % 7 días'],
+      'l-t-cort-mes': ['% de los que compraron', 'Pagaron a 60 días', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía', 'Volvieron y pagaron'],
+      'l-t-cort-local': ['% de los que compraron', 'Pagaron a 60 días', 'Venta neta después', 'Por cada uno que pagó', 'Solo cortesía', 'Volvieron y pagaron'],
       'tabla-mapa': 4, // Local y los 3 meses más recientes
       'tabla-conc': 4
     };
@@ -299,8 +313,8 @@
       'l-t-origen': ['Ticket', 'No concretaron', 'En curso'],
       'l-t-local': ['Ticket', 'No concretaron', 'En curso'],
       'l-t-mes': ['Compradores nuevos'],
-      'l-t-cort-mes': ['Por cada uno que pagó', '% de los que compraron'],
-      'l-t-cort-local': ['Por cada uno que pagó', '% de los que compraron'],
+      'l-t-cort-mes': ['Por cada uno que pagó', '% de los que compraron', 'Venta neta después', 'Solo cortesía'],
+      'l-t-cort-local': ['Por cada uno que pagó', '% de los que compraron', 'Venta neta después', 'Solo cortesía'],
       'tabla-mapa': 7, // Local y los 6 meses más recientes
       'tabla-conc': 7
     };

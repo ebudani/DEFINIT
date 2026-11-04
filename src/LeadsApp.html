@@ -6,7 +6,7 @@
   'use strict';
 
   var $ = function (id) { return document.getElementById(id); };
-  var est = { datos: null, cargando: false, filtros: null };
+  var est = { datos: null, cargando: false, filtros: null, embudo: 'total' };
   var graficos = {};
 
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -73,6 +73,13 @@
       $('tab-leads').setAttribute('aria-selected', 'false');
     });
   });
+  $('l-embudo-vista').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    est.embudo = b.getAttribute('data-v');
+    Array.prototype.forEach.call(this.children, function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
+    if (est.datos) render();
+  });
   $('btn-actualizar').addEventListener('click', function () { if (!$('vista-leads').hidden && !est.cargando) cargar(); });
   document.addEventListener('definit:filtros', function (e) {
     est.filtros = e.detail;
@@ -112,9 +119,9 @@
       .getLeads();
   }
 
-  /** Filas de "leads_vista" (bloques A: tipo, B: calificación, C: origen) -> objetos. */
+  /** Filas de "leads_vista" (bloques A: tipo, B: calificación, C: origen, S: semana) -> objetos. */
   function preparar(vista) {
-    var enc = vista[0], datos = { A: [], B: [], C: [] }, meses = {}, info = { ventas: '', plazo: '', corte: '' };
+    var enc = vista[0], datos = { A: [], B: [], C: [], S: [] }, meses = {}, info = { ventas: '', plazo: '', corte: '' };
     vista.slice(1).forEach(function (f) {
       if (f[0] === 'info') {
         info.ventas = String(f[1] || '').replace(/^ventas /, '');
@@ -125,13 +132,15 @@
       if (!datos[f[0]]) return;
       var o = { mes: String(f[1]), local: String(f[2]), clave: String(f[3]) };
       enc.slice(4).forEach(function (c, i) { o[c] = Number(f[i + 4]) || 0; });
-      datos[f[0]].push(o); meses[o.mes] = true;
+      if (f[0] === 'S') o.mes = o.mes.replace(/^sem /, ''); else meses[o.mes] = true; // en S, "mes" es el lunes de la semana
+      datos[f[0]].push(o);
     });
     var m = info.ventas.match(/(\d{4}-\d{2})-\d{2} a (\d{4}-\d{2})/) || [];
     datos.meses = Object.keys(meses).sort();
     datos.info = info;
     datos.primeraVenta = m[1] || '2026-01';
     datos.ultimaVenta = m[2] || '9999-12';
+    datos.fechaVentas = (info.ventas.match(/a (\d{4}-\d{2}-\d{2})/) || [])[1] || '';
     return datos;
   }
 
@@ -211,6 +220,7 @@
     d.A.forEach(function (o) { if (completos.indexOf(o.mes) >= 0 && enSeleccion(o.local)) sumar(limpio, o); });
     renderKpis(todos, A, anterior, meses, limpio, completos);
     renderEmbudo(A, porCalif);
+    renderPeriodo(mv);
     renderDias(A);
     $('l-n-cuando').textContent = 'Personas que entraron como lead entre ' + MESES[+mv[0].slice(5, 7) - 1] + ' y ' + MESES[+mv[mv.length - 1].slice(5, 7) - 1] +
       ' de ' + mv[0].slice(0, 4) + ', en locales propios' + (f.local ? ' (' + nombreLocal(f.local) + ')' : '') +
@@ -274,7 +284,87 @@
       backgroundColor: colores, maxBarThickness: 26, borderRadius: 4 }] }, options: op });
     $('l-n-embudo').innerHTML = 'De cada 100 personas que dejaron sus datos, <strong>' + nf0.format((conv(A) || 0) * 100) + '</strong> compraron dentro de los 90 días (incluye a quienes se llevaron la cortesía de 3 axilas).<br>' +
       '<strong>Con presupuesto</strong>: el equipo les envió presupuesto. <strong>No compraron</strong>: ya pasaron los 90 días sin comprar. ' +
-      '<strong>Todavía pueden comprar</strong>: dejaron sus datos hace menos de 90 días.';
+      '<strong>Todavía pueden comprar</strong>: dejaron sus datos hace menos de 90 días.' +
+      (est.embudo === 'total' ? '' : '<br><strong>Por ' + est.embudo + '</strong>: según la fecha del lead. Para comparar períodos se usa el <strong>% que compró en 7 días</strong>, porque todos tuvieron el mismo tiempo; Compraron sigue subiendo hasta los 90 días. <strong>En curso</strong>: todavía no pasaron 7 días desde el cierre del período.');
+  }
+
+  /** Compró dentro de los 7 días del lead: la medida justa para comparar períodos con distinta antigüedad. */
+  function en7(x) { return x.d0 + x.d1_3 + x.d4_7; }
+  function isoMas(iso, dias) { return new Date(Date.parse(iso + 'T00:00:00Z') + dias * 864e5).toISOString().slice(0, 10); }
+  function diaMes(iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); }
+
+  /** Períodos del embudo, del más viejo al más nuevo: { corto, nombre, fin, x, presu }. */
+  function periodos(modo, mv) {
+    var lista = [];
+    if (modo === 'mes') {
+      mv.forEach(function (m) {
+        var porCalif = resumir('B', [m], function (o) { return o.clave; }).grupos;
+        lista.push({ corto: mesCorto(m), nombre: mayus(MESES[+m.slice(5, 7) - 1]),
+          fin: m + '-' + ('0' + new Date(+m.slice(0, 4), +m.slice(5, 7), 0).getDate()).slice(-2),
+          x: resumir('A', [m]), presu: (porCalif.Presupuesto || vacio()).leads });
+      });
+      return lista;
+    }
+    var porSemana = {};
+    est.datos.S.forEach(function (o) {
+      if (!enSeleccion(o.local)) return;
+      var s = porSemana[o.mes] = porSemana[o.mes] || { x: vacio(), presu: 0 };
+      sumar(s.x, o);
+      if (o.clave === 'Presupuesto') s.presu += o.leads;
+    });
+    var lunes = Object.keys(porSemana).sort();
+    if (!lunes.length) return lista;
+    // Sem 1 es la semana del 1 de enero (puede arrancar en diciembre: solo cuenta los leads desde el 1).
+    var enero = lunes[lunes.length - 1].slice(0, 4) + '-01-01';
+    var ini = isoMas(enero, -((new Date(enero + 'T00:00:00Z').getUTCDay() + 6) % 7));
+    lunes.forEach(function (l) {
+      var n = Math.round((Date.parse(l) - Date.parse(ini)) / 6048e5) + 1, fin = isoMas(l, 6);
+      lista.push({ corto: 'Sem ' + n, nombre: 'Sem ' + n + ' (' + diaMes(l < enero ? enero : l) + '–' + diaMes(fin) + ')', fin: fin, x: porSemana[l].x, presu: porSemana[l].presu });
+    });
+    return lista;
+  }
+
+  /** Embudo por mes o por semana: gráfico y tabla, cada período comparado con el anterior. */
+  function renderPeriodo(mv) {
+    var modo = est.embudo, total = modo === 'total';
+    $('l-embudo-total').hidden = !total; $('l-embudo-periodo').hidden = total;
+    $('l-embudo-total').closest('.panel').classList.toggle('panel-ancho', !total);
+    if (total) { if (graficos['l-ch-embudo']) graficos['l-ch-embudo'].resize(); return; }
+    var lista = periodos(modo, mv), hay = lista.length > 0, hasta = est.datos.fechaVentas;
+    $('l-periodo-vacio').hidden = hay; $('l-periodo-datos').hidden = !hay;
+    if (!hay) return;
+    lista.forEach(function (p) {
+      p.cerrado = p.fin <= hasta;                       // ya terminó el período
+      p.maduro = isoMas(p.fin, 7) <= hasta;             // y pasaron 7 días desde el último lead
+      p.p7 = p.maduro && p.x.leads ? en7(p.x) / p.x.leads : null;
+    });
+    var op = opciones();
+    op.scales.y.ticks.callback = function (v) { return nf0.format(v); };
+    op.scales.y2 = { position: 'right', grid: { display: false }, border: { display: false }, beginAtZero: true, ticks: { color: css('--muted'), callback: function (v) { return nf0.format(v * 100) + '%'; } } };
+    op.plugins.tooltip.callbacks = {
+      title: function (c) { return lista[c[0].dataIndex].nombre; },
+      label: function (ctx) { return ctx.dataset.yAxisID === 'y2' ? ' Compró en 7 días: ' + pct(ctx.raw) : ' Leads: ' + nf0.format(ctx.raw); }
+    };
+    dibujar('l-ch-periodo', { data: { labels: lista.map(function (p) { return p.corto; }), datasets: [
+      { type: 'line', yAxisID: 'y2', data: lista.map(function (p) { return p.p7; }), borderColor: '#1f8a3b', backgroundColor: '#1f8a3b', pointRadius: 2, borderWidth: 2, tension: 0.25, order: 1 },
+      { type: 'bar', yAxisID: 'y', data: lista.map(function (p) { return p.x.leads; }), backgroundColor: css('--series-1'), maxBarThickness: 26, borderRadius: { topLeft: 3, topRight: 3 }, borderSkipped: 'start', order: 2 }
+    ] }, options: op });
+    $('l-leyenda-periodo').innerHTML = '<span><i style="border-color:' + css('--series-1') + '"></i>Leads</span><span><i style="border-color:#1f8a3b"></i>% que compró en 7 días</span>';
+    var dif = function (v, txt) {
+      return v == null ? '<td>–</td>' : '<td class="' + (v >= 0 ? 'pos-var' : 'neg') + '">' + (v >= 0 ? '+' : '−') + txt(Math.abs(v)) + '</td>';
+    };
+    var pp = function (v) { return nf1.format(v * 100) + ' pp'; };
+    var filas = lista.map(function (p, i) {
+      var a = lista[i - 1], varLeads = a && a.x.leads && p.cerrado ? p.x.leads / a.x.leads - 1 : null;
+      return '<tr><td class="izq">' + esc(p.nombre) + '</td><td>' + nf0.format(p.x.leads) + '</td>' + dif(varLeads, pct0) +
+        '<td>' + nf0.format(p.presu) + '</td><td>' + nf0.format(p.x.compraron) + '</td>' +
+        (p.maduro ? '<td>' + pct(p.p7) + '</td>' : '<td class="celda-seg" style="color:var(--muted)">en curso</td>') +
+        dif(a && a.p7 != null && p.p7 != null ? p.p7 - a.p7 : null, pp) + '</tr>';
+    }).join('');
+    $('l-t-periodo').innerHTML = '<thead><tr><th class="izq">' + (modo === 'mes' ? 'Mes' : 'Semana') + '</th><th>Leads</th><th>Dif. leads</th><th>Con presupuesto</th><th>Compraron</th>' +
+      '<th>% compró en 7 días</th><th>Dif. % 7 días</th></tr></thead><tbody>' + filas + '</tbody>';
+    var caja = $('l-periodo-scroll');
+    caja.scrollTop = modo === 'semana' ? caja.scrollHeight : 0; // las semanas más recientes a la vista
   }
 
   function renderDias(A) {
@@ -380,14 +470,19 @@
     $('l-cort-kpis').innerHTML = tiles.map(function (k) {
       return '<div class="kpi"><div class="kpi-label">' + k.label + '</div><div class="kpi-valor">' + k.valor + '</div><div class="kpi-det">' + k.det + '</div></div>';
     }).join('');
+    // Mes con menos de la mitad de las cortesías con el plazo cumplido: todavía no hay % que mostrar.
+    var EN_CURSO = '<td class="celda-seg" style="color:var(--muted)">en curso</td>';
     var fila = function (n, x, total) {
+      var c60 = total ? r60(x) : p60(x), c90 = total ? r90(x) : p90(x), vuelta = total || x.solo_c90 >= x.solo_cort / 2 ? v90(x) : null;
+      var abierto = !total && x.cortesia > 0;
       return '<tr><td class="izq">' + esc(n) + '</td><td>' + nf0.format(x.cortesia) + '</td><td>' + pct0(x.compraron ? x.cortesia / x.compraron : null) + '</td>' +
-        celdaCort(total ? r60(x) : p60(x), total === 'tot') + celdaCort(total ? r90(x) : p90(x), total === 'tot') + '<td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td>' +
-        '<td>' + nf0.format(x.solo_cort) + '</td><td>' + pct0(total || x.solo_c90 >= x.solo_cort / 2 ? v90(x) : null) + '</td></tr>';
+        (c60 == null && abierto ? EN_CURSO : celdaCort(c60, total === 'tot')) + (c90 == null && abierto ? EN_CURSO : celdaCort(c90, total === 'tot')) +
+        '<td>' + pct0(x.cortesia ? x.cort_pagaron / x.cortesia : null) + '</td><td>' + millones(x.cort_neto) + '</td><td>' + miles(tk(x)) + '</td>' +
+        '<td>' + nf0.format(x.solo_cort) + '</td>' + (vuelta == null && abierto && x.solo_cort > 0 ? EN_CURSO : '<td>' + pct0(vuelta) + '</td>') + '</tr>';
     };
     var cab = function (primera) {
       return '<thead><tr><th class="izq">' + primera + '</th><th>Cortesías</th><th>% de los que compraron</th><th>Pagaron a 60 días</th>' +
-        '<th>Pagaron a 90 días</th><th>Venta neta después</th><th>Por cada uno que pagó</th>' +
+        '<th>Pagaron a 90 días</th><th>Pagaron hasta ahora</th><th>Venta neta después</th><th>Por cada uno que pagó</th>' +
         '<th>Solo cortesía</th><th>Volvieron y pagaron</th></tr></thead>';
     };
     $('l-t-cort-mes').innerHTML = cab('Mes') + '<tbody>' + mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') +

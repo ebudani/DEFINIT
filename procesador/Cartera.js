@@ -161,12 +161,19 @@ function masRecienteEn(carpetaId, patron) {
 }
 
 /** Misma pestaña "vista" (bloques A, B y C) que usa la sección Leads, con el cruce de la cartera. */
+/** Semana de un lead: "sem " + el lunes. Con el prefijo, la planilla no lo convierte en fecha. */
+function semanaDe(ms) {
+  var DIA = 864e5, dia = Math.floor(ms / DIA) * DIA;
+  return 'sem ' + Utilities.formatDate(new Date(dia - ((new Date(dia).getUTCDay() + 6) % 7) * DIA), 'UTC', 'yyyy-MM-dd');
+}
+
 function escribirVistaCartera(libro, leads, maxVenta, corte) {
   var cuenta = {};
   leads.forEach(function (l) { cuenta[l.origen] = (cuenta[l.origen] || 0) + 1; });
   var top = TOP_ORIGENES = {};
   Object.keys(cuenta).sort(function (a, b) { return cuenta[b] - cuenta[a]; }).slice(0, 25).forEach(function (o) { top[o] = true; });
-  var A = {}, B = {}, C = {};
+  var A = {}, B = {}, C = {}, S = {};
+  var anio = new Date(maxVenta).getUTCFullYear();
   var sumar = function (mapa, k, l) {
     var x = mapa[k] = mapa[k] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     x[0]++;
@@ -180,9 +187,11 @@ function escribirVistaCartera(libro, leads, maxVenta, corte) {
   leads.forEach(function (l) {
     var k = clavesVista(l);
     sumar(A, k[0], l); sumar(B, k[1], l); sumar(C, k[2], l);
+    // Por semana (lunes a domingo), solo el año en curso: lo usa el Embudo.
+    if (new Date(l.ms).getUTCFullYear() === anio) sumar(S, ['S', semanaDe(l.ms), l.local, l.calif === 'Presupuesto' ? 'Presupuesto' : 'otro'].join('|'), l);
   });
   var filas = [['bloque', 'mes', 'local', 'clave', 'leads', 'compraron', 'facturacion', 'd0', 'd1_3', 'd4_7', 'd8_15', 'd16_30', 'd31_60', 'd61_90', 'dias_suma', 'mismo_local', 'no_concretaron', 'en_curso']];
-  [A, B, C].forEach(function (mapa) {
+  [A, B, C, S].forEach(function (mapa) {
     Object.keys(mapa).sort().forEach(function (k) {
       var x = mapa[k];
       filas.push(k.split('|').concat([x[0], x[1], Math.round(x[2])], x.slice(3, 10), [x[10], x[11], x[12], x[13]]));
