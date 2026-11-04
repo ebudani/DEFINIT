@@ -611,7 +611,15 @@
     return semanas;
   }
 
-  function rangoSemana(s) { return fechaCorta(s.lunes) + ' al ' + fechaCorta(s.domingo); }
+  // Igual que en el Embudo de Leads: Sem 1 es la semana del 1 de enero. Ejemplo: Sem 44 (26/10–01/11).
+  function semCorta(s) {
+    var ini = lunesDe(s.domingo.slice(0, 4) + '-01-01');
+    return 'Sem ' + (Math.round((isoAUTC(s.lunes) - isoAUTC(ini)) / 6048e5) + 1);
+  }
+  function semLarga(s) {
+    var enero = s.domingo.slice(0, 4) + '-01-01', dm = function (iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); };
+    return semCorta(s) + ' (' + dm(s.lunes < enero ? enero : s.lunes) + '–' + dm(s.domingo) + ')';
+  }
 
   function renderSemanal() {
     var semanas = calcularSemanas();
@@ -624,7 +632,7 @@
     var op = baseOpciones();
     op.interaction = { mode: 'nearest', axis: 'x', intersect: false };
     op.plugins.tooltip.callbacks = {
-      title: function (items) { var s = semanas[items[0].dataIndex]; return 'Semana del ' + rangoSemana(s) + (s.parcial ? ' (' + s.nDias + ' días)' : ''); },
+      title: function (items) { var s = semanas[items[0].dataIndex]; return semLarga(s) + (s.parcial ? ' · ' + s.nDias + ' días' : ''); },
       label: function (ctx) {
         var s = semanas[ctx.dataIndex];
         return [' Venta: ' + millones(s.venta)].concat(s.var == null ? [] :
@@ -633,7 +641,7 @@
     };
     dibujar('ch-semanal', {
       type: 'bar',
-      data: { labels: semanas.map(function (s) { return fechaCorta(s.lunes); }), datasets: [{
+      data: { labels: semanas.map(semCorta), datasets: [{
         label: 'Venta', data: semanas.map(function (s) { return s.venta; }),
         backgroundColor: semanas.map(function (s) { return s.parcial ? claro : s1; }),
         maxBarThickness: 24, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start'
@@ -651,7 +659,7 @@
     $('tabla-semanal').innerHTML = '<thead><tr><th class="izq" scope="col">Semana</th><th scope="col">Venta</th>' +
       '<th scope="col">Dif. vs anterior</th><th scope="col">Var.</th></tr></thead><tbody>' +
       ultimas.map(function (s, i) {
-        var etiqueta = fechaCorta(s.lunes) + '–' + fechaCorta(s.domingo) + (i === 0 && s.parcial
+        var etiqueta = semLarga(s) + (i === 0 && s.parcial
           ? '<br><span class="nota">en curso</span>' : '');
         return '<tr><td class="izq">' + etiqueta + '</td><td>' + millones(s.venta) + '</td><td>' +
           (s.dif == null ? '–' : (s.dif >= 0 ? '+' : '−') + millones(Math.abs(s.dif))) + '</td>' + flecha(s.var) + '</tr>';
