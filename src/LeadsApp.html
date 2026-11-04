@@ -225,6 +225,7 @@
     $('l-n-cuando').textContent = 'Personas que entraron como lead entre ' + MESES[+mv[0].slice(5, 7) - 1] + ' y ' + MESES[+mv[mv.length - 1].slice(5, 7) - 1] +
       ' de ' + mv[0].slice(0, 4) + ', en locales propios' + (f.local ? ' (' + nombreLocal(f.local) + ')' : '') +
       ', y compraron dentro de los 90 días siguientes a su lead. Días desde el lead hasta la primera compra.';
+    renderCuando(mv, A);
     renderTipos(A);
     renderTendencia(meses);
     renderTablaCalif(porCalif);
@@ -375,9 +376,20 @@
     dibujar('l-ch-dias', { type: 'bar', data: { labels: TRAMOS.map(function (t) { return t[1]; }), datasets: [{ data: datos,
       backgroundColor: TRAMOS.map(function (t, i) { return i < 2 ? css('--series-1') : '#b3b3ff'; }), maxBarThickness: 40, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] }, options: op });
     $('l-n-dias').innerHTML = 'El <strong>' + pct0(en3(A)) + '</strong> de los que compran lo hace en los primeros 3 días: la velocidad de respuesta define la venta.';
-    $('l-t-dias').innerHTML = '<thead><tr><th class="izq">Cuándo compran</th><th>Compradores</th><th>%</th></tr></thead><tbody>' +
-      TRAMOS.map(function (t) { return '<tr><td class="izq">' + t[1] + '</td><td>' + nf0.format(A[t[0]]) + '</td><td>' + pct0(A.compraron ? A[t[0]] / A.compraron : null) + '</td></tr>'; }).join('') + '</tbody>' +
-      '<tfoot><tr><td class="izq">Total que compró</td><td>' + nf0.format(A.compraron) + '</td><td>' + (A.compraron ? '100%' : '–') + '</td></tr></tfoot>';
+  }
+
+  /** Cuándo compran: matriz mes por tramo de días, con compradores y % sobre los compradores del mes. */
+  function renderCuando(mv, A) {
+    var por = resumir('A', mv, function (o) { return o.mes; }).grupos;
+    var celda = function (n, base) {
+      return '<td class="celda-doble">' + nf0.format(n) + '<small>' + pct0(base ? n / base : null) + '</small></td>';
+    };
+    var fila = function (nombre, x) {
+      return '<tr><td class="izq">' + esc(nombre) + '</td>' + TRAMOS.map(function (t) { return celda(x[t[0]], x.compraron); }).join('') +
+        '<td class="celda-doble">' + nf0.format(x.compraron) + '<small>' + (x.compraron ? '100%' : '–') + '</small></td></tr>';
+    };
+    $('l-t-dias').innerHTML = '<thead><tr><th class="izq">Cuándo compran</th>' + TRAMOS.map(function (t) { return '<th>' + t[1] + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>' +
+      mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') + '</tbody><tfoot>' + fila('Total', A) + '</tfoot>';
   }
 
   function renderTipos(A) {
