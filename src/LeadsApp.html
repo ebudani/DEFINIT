@@ -368,11 +368,11 @@
         '<td>' + nf0.format(p.presu) + '</td><td>' + nf0.format(p.x.compraron) + '</td>' +
         (p.maduro ? '<td>' + pct(p.p7) + '</td>' : '<td class="celda-seg" style="color:var(--muted)">en curso</td>') +
         dif(a && a.p7 != null && p.p7 != null ? p.p7 - a.p7 : null, pp) + '</tr>';
-    }).join('');
+    }).reverse().join(''); // lo más reciente arriba
     $('l-t-periodo').innerHTML = '<thead><tr><th class="izq">' + (modo === 'mes' ? 'Mes' : 'Semana') + '</th><th>Leads</th><th>Dif. leads</th><th>Con presupuesto</th><th>Compraron</th>' +
       '<th>% compró en 7 días</th><th>Dif. % 7 días</th></tr></thead><tbody>' + filas + '</tbody>';
     var caja = $('l-periodo-scroll');
-    caja.scrollTop = modo === 'semana' ? caja.scrollHeight : 0; // las semanas más recientes a la vista
+    caja.scrollTop = 0;
   }
 
   function renderDias(A) {
@@ -400,7 +400,7 @@
         '<td class="celda-doble">' + nf0.format(x.compraron) + ' <small>(' + (x.compraron ? '100%' : '–') + ')</small></td></tr>';
     };
     $('l-t-dias').innerHTML = '<thead><tr><th class="izq">Cuándo compran</th>' + TRAMOS.map(function (t) { return '<th>' + t[1] + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>' +
-      mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') + '</tbody><tfoot>' + fila('Total', A) + '</tfoot>';
+      mv.slice().reverse().map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') + '</tbody><tfoot>' + fila('Total', A) + '</tfoot>';
   }
 
   function renderTipos(A) {
@@ -463,7 +463,7 @@
       return fila(mayus(MESES[+m.slice(5, 7) - 1]), x, ant, nv);
     });
     $('l-t-mes').innerHTML = '<thead><tr><th class="izq">Mes</th><th>Leads</th><th>vs año anterior</th><th>Compraron</th><th>% compró</th>' +
-      '<th>Venta neta</th><th>Compra en 3 días</th><th>Compradores nuevos</th></tr></thead><tbody>' + filas.join('') + '</tbody>' +
+      '<th>Venta neta</th><th>Compra en 3 días</th><th>Compradores nuevos</th></tr></thead><tbody>' + filas.reverse().join('') + '</tbody>' +
       '<tfoot>' + fila('Total del año', tot, totAnt, totNuevos, true) + '</tfoot>';
   }
 
@@ -508,7 +508,7 @@
         '<th>Pagaron a 90 días</th><th>Pagaron hasta ahora</th><th>Venta neta después</th><th>Por cada uno que pagó</th>' +
         '<th>Solo cortesía</th><th>Volvieron y pagaron</th></tr></thead>';
     };
-    $('l-t-cort-mes').innerHTML = cab('Mes') + '<tbody>' + mv.map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') +
+    $('l-t-cort-mes').innerHTML = cab('Mes') + '<tbody>' + mv.slice().reverse().map(function (m) { return fila(mayus(MESES[+m.slice(5, 7) - 1]), por[m] || vacio()); }).join('') +
       '</tbody><tfoot>' + fila('Total del año', tot, 'tot') + '</tfoot>';
     $('l-escala-cort').innerHTML = '<span style="margin-right:6px">% que pagó después de la cortesía:</span>' + ESCALA_CORT.map(function (e) {
       return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px"><i style="background:' + e.fondo + '"></i>' + e.lbl + '</span>';
